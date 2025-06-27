@@ -1,0 +1,13 @@
+
+Top 10 words (excluding stop words):
+movie: 149127
+film: 122507
+one: 97391
+all: 89120
+like: 80649
+about: 70048
+some: 65487
+very: 64629
+out: 62477
+when: 60980
+⏱️ Total Time: 42.4 seconds

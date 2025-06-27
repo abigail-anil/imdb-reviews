@@ -1,0 +1,7 @@
+📥 Loading reviews from S3...
+🧮 Processing 100000 reviews for hashtags...
+
+🔥 Top Hashtags:
+#king: 2
+
+⏱️ Total Time: 17.89 seconds

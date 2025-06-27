@@ -1,0 +1,4 @@
+
+🧠 Average Sentiment Polarity (VADER): 0.5063
+
+⏱️ Total Time: 230.66 seconds
