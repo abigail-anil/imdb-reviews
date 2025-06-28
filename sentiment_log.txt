@@ -1,4 +1,2 @@
-
-🧠 Average Sentiment Polarity (VADER): 0.5063
-
-⏱️ Total Time: 230.66 seconds
+ Listing .json files in S3...
+ Found 3 files. Fetching review texts in parallel...

@@ -1,6 +1,7 @@
 import boto3
 import json
 from collections import Counter, defaultdict
+import re # Import regex for timestamp extraction
 
 S3_BUCKET = 'imdbreviews-scalable'
 S3_PREFIX = 'kafka-consumer-outputs/'
@@ -21,62 +22,98 @@ def load_json_from_s3(key):
 
 def summarize_outputs():
     keys = list_json_objects(S3_BUCKET, S3_PREFIX)
-    print(f"📂 Found {len(keys)} summary files")
+    print(f"Found {len(keys)} summary files")
 
-    total_reviews = 0
+    max_total_records_processed_overall = 0 # To store the ultimate total reviews
+
     total_sentiment = 0.0
     total_spoiler_count = 0
-    duration_sec = 0.0
+    total_duration = 0.0
+
+    # These will now track weighted averages or sums
+    weighted_sentiment_sum = 0.0
+    weighted_spoiler_count_sum = 0.0
+    total_records_for_averages = 0 # To track total records contributing to avg sentiment/spoiler
+
+    # For avg latency and throughput, we need to sum up individual batch durations and records
+    total_records_for_avg_latency_throughput = 0
+    total_duration_for_avg_latency_throughput = 0.0
+
 
     word_counter = Counter()
     movie_sentiments = defaultdict(list)
 
+    # To track the last seen overall records for correct total
+    last_overall_records = 0
+
+    # Sort keys by timestamp to ensure we process in order and get the latest overall count
+    # Assuming filenames are like summary_2025-06-28T17-02-36-350486.json
+    def extract_timestamp_from_key(key):
+        match = re.search(r'summary_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+)\.json', key)
+        if match:
+            return match.group(1)
+        return "" # Or handle error
+
+    keys.sort(key=extract_timestamp_from_key)
+
+
     for key in keys:
         data = load_json_from_s3(key)
+
+        # Update the maximum total records processed overall
+        current_overall_records = data.get('total_records_processed_overall', 0)
+        if current_overall_records > max_total_records_processed_overall:
+            max_total_records_processed_overall = current_overall_records
+
+        # Use records_in_batch for calculations that are *per batch*
         batch_reviews = data.get('records_in_batch', 0)
-        total_reviews += batch_reviews
+        current_duration = data.get('duration_sec_current_interval', 0.0)
 
-        duration_sec = max(duration_sec, data.get('duration_sec', 0.0))
+        # Accumulate for average latency and throughput
+        total_records_for_avg_latency_throughput += batch_reviews
+        total_duration_for_avg_latency_throughput += current_duration
 
-        # Weighted sentiment
-        if data.get('avg_sentiment') is not None:
-            total_sentiment += data['avg_sentiment'] * batch_reviews
 
-        # Weighted spoiler percent
-        if data.get('spoiler_percent') is not None:
-            total_spoiler_count += (data['spoiler_percent'] / 100) * batch_reviews
+        # For avg_sentiment and avg_spoiler_percent, we need to weight them by the number of reviews in that batch
+        # The 'avg_sentiment_window' and 'spoiler_percent_window' are averages for that specific window,
+        # so we need to multiply by the batch_reviews to get the total "sentiment points" or "spoiler points" for that batch
+        avg_sent = data.get('avg_sentiment_window')
+        if avg_sent is not None and batch_reviews > 0:
+            weighted_sentiment_sum += avg_sent * batch_reviews
+            total_records_for_averages += batch_reviews # Add to the count for the overall weighted average
 
-        # Accumulate word frequencies
-        for word, count in data.get('top_words', []):
+        spoiler_pct = data.get('spoiler_percent_window')
+        if spoiler_pct is not None and batch_reviews > 0:
+            weighted_spoiler_count_sum += (spoiler_pct / 100) * batch_reviews # Convert percentage to a proportion of reviews
+            # No need to add to total_records_for_averages again, it's the same base count
+
+
+        for word, count in data.get('top_words_window', []):
             word_counter[word] += count
 
-        # Collect sentiment scores by movie
-        for movie, sentiment in data.get('sentiment_by_movie', {}).items():
-            movie_sentiments[movie].append(sentiment)
+        for movie, score in data.get('sentiment_by_movie_current_window', {}).items():
+            movie_sentiments[movie].append(score)
 
-    # Compute average sentiment per movie
     movie_avg_sentiment = {
         movie: round(sum(scores) / len(scores), 3)
         for movie, scores in movie_sentiments.items()
     }
 
-    # Top 10 by frequency
     top_words = word_counter.most_common(10)
     top_movies = sorted(movie_avg_sentiment.items(), key=lambda x: x[1], reverse=True)[:10]
 
-    # Final aggregation
     summary = {
-        'total_reviews': total_reviews,
-        'total_duration_sec': round(duration_sec, 2),
-        'avg_throughput': round(total_reviews / duration_sec, 2) if duration_sec else None,
-        'avg_latency_sec': round(duration_sec / total_reviews, 4) if total_reviews else None,
-        'avg_sentiment': round(total_sentiment / total_reviews, 4) if total_reviews else None,
-        'avg_spoiler_percent': round(100 * total_spoiler_count / total_reviews, 2) if total_reviews else None,
+        'total_reviews': max_total_records_processed_overall, # This is the corrected value
+        'total_duration_sec': round(total_duration_for_avg_latency_throughput, 2), # Sum of all individual batch durations
+        'avg_throughput': round(total_records_for_avg_latency_throughput / total_duration_for_avg_latency_throughput, 2) if total_duration_for_avg_latency_throughput else None,
+        'avg_latency_sec': round(total_duration_for_avg_latency_throughput / total_records_for_avg_latency_throughput, 4) if total_records_for_avg_latency_throughput else None,
+        'avg_sentiment': round(weighted_sentiment_sum / total_records_for_averages, 4) if total_records_for_averages else None,
+        'avg_spoiler_percent': round(100 * weighted_spoiler_count_sum / total_records_for_averages, 2) if total_records_for_averages else None,
         'top_10_words': top_words,
         'top_10_movies_sentiment': top_movies
     }
 
-    print("\n📊 Final Aggregated Summary:")
+    print("\nFinal Aggregated Summary:")
     for k, v in summary.items():
         if isinstance(v, list):
             print(f"{k}:")
@@ -87,4 +124,3 @@ def summarize_outputs():
 
 if __name__ == "__main__":
     summarize_outputs()
-
