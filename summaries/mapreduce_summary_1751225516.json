@@ -1,0 +1,51 @@
+{
+  "method": "MapReduce",
+  "total_files_processed": 12,
+  "total_reviews_processed": 1110293,
+  "total_mapreduce_time_sec": 64.79,
+  "throughput_reviews_per_sec": 17136.8,
+  "latency_sec_per_review": 0.0001,
+  "top_10_words": [
+    [
+      "movie",
+      946560
+    ],
+    [
+      "film",
+      732014
+    ],
+    [
+      "one",
+      654861
+    ],
+    [
+      "all",
+      631458
+    ],
+    [
+      "like",
+      617232
+    ],
+    [
+      "about",
+      492009
+    ],
+    [
+      "good",
+      470685
+    ],
+    [
+      "very",
+      465002
+    ],
+    [
+      "some",
+      462636
+    ],
+    [
+      "more",
+      458301
+    ]
+  ],
+  "timestamp_utc": "2025-06-29T19:31:56.637566"
+}

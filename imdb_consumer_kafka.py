@@ -17,7 +17,8 @@ from nltk.tokenize import sent_tokenize
 # Config
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
 TOPIC = os.getenv("KAFKA_TOPIC", "imdb-reviews")
-GROUP_ID = "imdb-consumer-group" # Change this if you want to start fresh without resetting offsets manually
+GROUP_ID = f"imdb-consumer-group-{os.getenv('INSTANCE_ID', '1')}"
+#GROUP_ID = "imdb-consumer-group"
 S3_BUCKET = "imdbreviews-scalable"
 S3_PREFIX = "kafka-consumer-outputs/"
 WINDOW_SECONDS = 300 # 5 minutes for rolling window calculations

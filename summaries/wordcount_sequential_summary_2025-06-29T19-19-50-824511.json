@@ -1,0 +1,50 @@
+{
+  "method": "Word Count (Sequential)",
+  "total_reviews": 1110293,
+  "total_files": 12,
+  "total_time_sec": 79.7,
+  "throughput": 13930.9,
+  "latency": 0.0001,
+  "top_10_words": [
+    [
+      "movie",
+      946560
+    ],
+    [
+      "film",
+      732014
+    ],
+    [
+      "one",
+      654861
+    ],
+    [
+      "all",
+      631458
+    ],
+    [
+      "like",
+      617232
+    ],
+    [
+      "about",
+      492009
+    ],
+    [
+      "good",
+      470685
+    ],
+    [
+      "very",
+      465002
+    ],
+    [
+      "some",
+      462636
+    ],
+    [
+      "more",
+      458301
+    ]
+  ]
+}

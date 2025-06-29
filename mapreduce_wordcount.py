@@ -1,11 +1,14 @@
 import boto3
 import json
 import time
+from datetime import datetime
 from multiprocessing import Pool, cpu_count
 from collections import Counter
 
 S3_BUCKET = 'imdbreviews-scalable'
 S3_PREFIX = 'input_files/'
+SUMMARY_PREFIX = 'summaries/'  # Target folder for storing summary JSON
+SUMMARY_BASE_NAME = 'mapreduce_wordcount_summary'  # Prefix used to delete old files
 
 STOP_WORDS = {
     'the', 'and', 'to', 'of', 'a', 'in', 'it', 'is', 'i', 'that',
@@ -15,10 +18,9 @@ STOP_WORDS = {
     'my', 'we', 'our', 'their', 'what', 'who', 'will', 'just'
 }
 
-# List all .json files in S3 prefix
 def list_json_keys(bucket, prefix):
     s3 = boto3.client('s3')
-    paginator = s3.get_pagnator('list_objects_v2')
+    paginator = s3.get_paginator('list_objects_v2')
     keys = []
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get('Contents', []):
@@ -26,7 +28,21 @@ def list_json_keys(bucket, prefix):
                 keys.append(obj['Key'])
     return keys
 
-# Map function: read file, clean and count words, and count reviews
+def delete_existing_summaries(bucket, prefix, base_name):
+    print("Checking and deleting old summary files if any...")
+    s3 = boto3.client('s3')
+    keys = list_json_keys(bucket, prefix)
+    keys_to_delete = [k for k in keys if k.startswith(prefix + base_name)]
+    
+    if keys_to_delete:
+        print(f"Found {len(keys_to_delete)} old summary file(s) to delete:")
+        for k in keys_to_delete:
+            print(f" - {k}")
+            s3.delete_object(Bucket=bucket, Key=k)
+        print("Old summary files deleted.")
+    else:
+        print("No matching old summary files found.")
+
 def map_wordcount_from_file(key):
     s3 = boto3.client('s3')
     try:
@@ -35,10 +51,10 @@ def map_wordcount_from_file(key):
         data = json.loads(content)
 
         counter = Counter()
-        reviews_in_file = 0 # Initialize counter for reviews in this file
+        reviews_in_file = 0
         for r in data:
             if isinstance(r, dict):
-                reviews_in_file += 1 # Increment for each valid review
+                reviews_in_file += 1
                 text = r.get('review_detail', '') + ' ' + r.get('review_summary', '')
                 words = [
                     word.lower()
@@ -46,42 +62,36 @@ def map_wordcount_from_file(key):
                     if word.isalpha() and word.lower() not in STOP_WORDS
                 ]
                 counter.update(words)
-        return counter, reviews_in_file # Return both the word count and review count
+        return counter, reviews_in_file
     except Exception as e:
         print(f"Error processing {key}: {e}")
-        return Counter(), 0 # Return empty counter and 0 reviews on error
+        return Counter(), 0
 
-# Reduce function: merge all word counters and sum review counts
 def reduce_counts(mapped_results):
     final_word_counts = Counter()
-    total_reviews_processed = 0 # Initialize total reviews
-
+    total_reviews_processed = 0
     for partial_word_count, reviews_count_in_file in mapped_results:
         final_word_counts.update(partial_word_count)
-        total_reviews_processed += reviews_count_in_file # Sum up reviews from each file
+        total_reviews_processed += reviews_count_in_file
     return final_word_counts, total_reviews_processed
 
-# Main
 if __name__ == '__main__':
-    start_time = time.time() # Renamed to avoid conflict if 'start' is a keyword elsewhere
+    start_time = time.time()
 
-    print("Listing files...")
+    print("Listing input files from S3...")
     keys = list_json_keys(S3_BUCKET, S3_PREFIX)
-    print(f"Found {len(keys)} JSON files.")
+    print(f"Found {len(keys)} JSON input files.")
 
     print("Running parallel Map step...")
     with Pool(cpu_count()) as pool:
-        # mapped_results will now be a list of tuples: [(Counter, int), (Counter, int), ...]
         mapped_results = pool.map(map_wordcount_from_file, keys)
 
     print("Reducing results...")
-    # final_counts will be the Counter, total_reviews will be the integer
     final_word_counts, total_reviews_processed = reduce_counts(mapped_results)
 
     end_time = time.time()
     total_mapreduce_time = round(end_time - start_time, 2)
 
-    # Calculate Throughput and Latency
     throughput = round(total_reviews_processed / total_mapreduce_time, 2) if total_mapreduce_time > 0 else 0
     latency = round(total_mapreduce_time / total_reviews_processed, 4) if total_reviews_processed > 0 else 0
 
@@ -93,5 +103,31 @@ if __name__ == '__main__':
     print(f"Overall Latency: {latency} seconds/review")
 
     print("\nTop 10 Words (excluding stop words):")
-    for word, count in final_word_counts.most_common(10):
+    top_words = final_word_counts.most_common(10)
+    for word, count in top_words:
         print(f"{word}: {count}")
+
+    # --- Save summary to S3 ---
+    summary_data = {
+        "method": "Word Count (Parallel)",
+        "total_files_processed": len(keys),
+        "total_reviews_processed": total_reviews_processed,
+        "total_mapreduce_time_sec": total_mapreduce_time,
+        "throughput_reviews_per_sec": throughput,
+        "latency_sec_per_review": latency,
+        "top_10_words": top_words,
+        "timestamp_utc": datetime.utcnow().isoformat()
+    }
+
+    delete_existing_summaries(S3_BUCKET, SUMMARY_PREFIX, SUMMARY_BASE_NAME)
+
+    summary_key = f"{SUMMARY_PREFIX}{SUMMARY_BASE_NAME}_{int(time.time())}.json"
+    s3 = boto3.client('s3')
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=summary_key,
+        Body=json.dumps(summary_data, indent=2),
+        ContentType='application/json'
+    )
+    print(f"\nSummary saved to s3://{S3_BUCKET}/{summary_key}")
+

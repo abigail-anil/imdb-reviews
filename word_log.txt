@@ -1,2 +1,23 @@
- Listing JSON files from S3...
- Found 3 JSON files. Fetching in parallel...
+Listing files...
+Found 12 JSON files.
+Running parallel Map step...
+Reducing results...
+
+--- MapReduce Summary ---
+Total files processed: 12
+Total reviews processed: 1110293
+Total MapReduce Time: 227.36 seconds
+Overall Throughput: 4883.41 reviews/second
+Overall Latency: 0.0002 seconds/review
+
+Top 10 Words (excluding stop words):
+movie: 946560
+film: 732014
+one: 654861
+all: 631458
+like: 617232
+about: 492009
+good: 470685
+very: 465002
+some: 462636
+more: 458301

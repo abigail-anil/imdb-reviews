@@ -15,11 +15,17 @@
 
 # Command Line History (newest to oldest):
 :wq!
-|2,0,1751140211,,"wq!"
+|2,0,1751227698,,"wq!"
 :q
-|2,0,1751139611,,"q"
+|2,0,1751227145,,"q"
+:wq1
+|2,0,1751223017,,"wq1"
 :q!
-|2,0,1751138266,,"q!"
+|2,0,1751221964,,"q!"
+:950
+|2,0,1751149172,,"950"
+:set nu
+|2,0,1751149168,,"set nu"
 :Q
 |2,0,1751046366,,"Q"
 
@@ -57,27 +63,18 @@
 
 # Registers:
 ""1	LINE	0
-	# Removed: from multiprocessing import Pool, cpu_count
-|3,1,1,1,1,0,1751140207,"# Removed: from multiprocessing import Pool, cpu_count"
-"2	LINE	0
-	    # MODIFIED: Replaced pool.map with a sequential loop
-|3,0,2,1,1,0,1751140191,"    # MODIFIED: Replaced pool.map with a sequential loop"
-"3	LINE	0
-	    # MODIFIED: Replaced pool.map with a sequential loop
-|3,0,3,1,1,0,1751140185,"    # MODIFIED: Replaced pool.map with a sequential loop"
-"4	LINE	0
-	    # Note: total_relevant_tags and spoiler_tags_count logic remains as in your provided parallel script
-|3,0,4,1,1,0,1751140178,"    # Note: total_relevant_tags and spoiler_tags_count logic remains as in your provided parallel script"
-"5	LINE	0
 	import boto3
 	import json
 	import re
-	from collections import Counter
 	import time
+	from multiprocessing import Pool, cpu_count
+	from collections import Counter
 	
+	# Config
 	S3_BUCKET = 'imdbreviews-scalable'
 	S3_PREFIX = 'input_files/'
 	
+	# Stop-word-style banned hashtags
 	stop_tags = {
 	    'the', 'and', 'you', 'but', 'was', 'are', 'for', 'have', 'not',
 	    'his', 'her', 'she', 'there', 'with', 'this', 'that', 'what',
@@ -85,325 +82,662 @@
 	    'one', 'more', 'some', 'just', 'from', 'like', 'contains', 'commentessentially'
 	}
 	
+	# Step 1: List all JSON files in S3
 	def list_json_keys(bucket, prefix):
 	    s3 = boto3.client('s3')
-	    keys = []
 	    paginator = s3.get_paginator('list_objects_v2')
+	    keys = []
 	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
 	        for obj in page.get('Contents', []):
 	            if obj['Key'].endswith('.json'):
 	                keys.append(obj['Key'])
 	    return keys
 	
-	def load_reviews(bucket, keys):
+	# Step 2: Fetch reviews from one file
+	#  Return (list of valid reviews, count of valid reviews)
+	def fetch_reviews_from_s3(key_bucket_pair):
+	    key, bucket = key_bucket_pair
 	    s3 = boto3.client('s3')
-	    reviews = []
-	    for key in keys:
+	    try:
 	        response = s3.get_object(Bucket=bucket, Key=key)
 	        content = response['Body'].read().decode('utf-8')
 	        data = json.loads(content)
-	        reviews.extend([r for r in data if isinstance(r, dict)])
-	    return reviews
+	        valid_reviews = [r for r in data if isinstance(r, dict)]
+	        return valid_reviews, len(valid_reviews) # Return both reviews and their count
+	    except Exception as e:
+	        print(f"Error reading {key}: {e}")
+	        return [], 0 # Return empty list and 0 count on error
 	
-	def extract_all_hashtags(reviews):
-	    all_tags = []
-	    for review in reviews:
-	        text = review.get("review_detail", "") + " " + review.get("review_summary", "")
-	        raw_tags = re.findall(r'(?<!\w)#([a-zA-Z]{3,})\b', text)
-	        valid_tags = [
-	            f"#{tag.lower()}"
-	            for tag in raw_tags
-	            if tag.lower() not in stop_tags
-	        ]
-	        all_tags.extend(valid_tags)
-	    return Counter(all_tags)
+	# Step 3: Extract hashtags from a single review
+	def extract_hashtags(review):
+	    text = review.get("review_detail", "") + " " + review.get("review_summary", "")
+	    raw_tags = re.findall(r'(?<!\w)#([a-zA-Z]{3,})\b', text)
+	    return [
+|3,1,1,1,50,0,1751227682,"import boto3","import json","import re","import time","from multiprocessing import Pool, cpu_count","from collections import Counter","","# Config","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'input_files/'","","# Stop-word-style banned hashtags","stop_tags = {","    'the', 'and', 'you', 'but', 'was', 'are', 'for', 'have', 'not',","    'his', 'her', 'she', 'there', 'with', 'this', 'that', 'what',",>71
+|<"    'in', 'on', 'out', 'at', 'by', 'all', 'spoiler', 'movie', 'film',","    'one', 'more', 'some', 'just', 'from', 'like', 'contains', 'commentessentially'","}","","# Step 1: List all JSON files in S3","def list_json_keys(bucket, prefix):","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    keys = []","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):","        for obj in page.get('Contents', []):",>46
+|<"            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return keys","","# Step 2: Fetch reviews from one file","#  Return (list of valid reviews, count of valid reviews)","def fetch_reviews_from_s3(key_bucket_pair):","    key, bucket = key_bucket_pair","    s3 = boto3.client('s3')","    try:","        response = s3.get_object(Bucket=bucket, Key=key)","        content = response['Body'].read().decode('utf-8')","        data = json.loads(content)",>66
+|<"        valid_reviews = [r for r in data if isinstance(r, dict)]","        return valid_reviews, len(valid_reviews) # Return both reviews and their count","    except Exception as e:","        print(f\"Error reading {key}: {e}\")","        return [], 0 # Return empty list and 0 count on error","","# Step 3: Extract hashtags from a single review","def extract_hashtags(review):","    text = review.get(\"review_detail\", \"\") + \" \" + review.get(\"review_summary\", \"\")",>64
+|<"    raw_tags = re.findall(r'(?<!\\w)#([a-zA-Z]{3,})\\b', text)","    return ["
+"2	LINE	0
+	import os
+	import json
+	import time
+	import nltk
+	import boto3
+	from multiprocessing import Pool, cpu_count # Import Pool from multiprocessing
+	from multiprocessing.pool import ThreadPool # Keep ThreadPool for S3 I/O
+	from nltk.sentiment.vader import SentimentIntensityAnalyzer
 	
-	if __name__ == '__main__':
-|3,0,5,1,50,0,1751140163,"import boto3","import json","import re","from collections import Counter","import time","","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'input_files/'","","stop_tags = {","    'the', 'and', 'you', 'but', 'was', 'are', 'for', 'have', 'not',","    'his', 'her', 'she', 'there', 'with', 'this', 'that', 'what',","    'in', 'on', 'out', 'at', 'by', 'all', 'spoiler', 'movie', 'film',",>85
-|<"    'one', 'more', 'some', 'just', 'from', 'like', 'contains', 'commentessentially'","}","","def list_json_keys(bucket, prefix):","    s3 = boto3.client('s3')","    keys = []","    paginator = s3.get_paginator('list_objects_v2')","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return keys","","def load_reviews(bucket, keys):",>29
-|<"    s3 = boto3.client('s3')","    reviews = []","    for key in keys:","        response = s3.get_object(Bucket=bucket, Key=key)","        content = response['Body'].read().decode('utf-8')","        data = json.loads(content)","        reviews.extend([r for r in data if isinstance(r, dict)])","    return reviews","","def extract_all_hashtags(reviews):","    all_tags = []","    for review in reviews:",>99
-|<"        text = review.get(\"review_detail\", \"\") + \" \" + review.get(\"review_summary\", \"\")","        raw_tags = re.findall(r'(?<!\\w)#([a-zA-Z]{3,})\\b', text)","        valid_tags = [","            f\"#{tag.lower()}\"","            for tag in raw_tags","            if tag.lower() not in stop_tags","        ]","        all_tags.extend(valid_tags)","    return Counter(all_tags)","","if __name__ == '__main__':"
+	#nltk.download('vader_lexicon', quiet=True) 
+	
+	# S3 Configuration
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_PREFIX = 'input_files/'
+	
+	def list_json_keys(bucket, prefix):
+	    s3 = boto3.client('s3')
+	    paginator = s3.get_paginator('list_objects_v2')
+	    keys = []
+	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+	        for obj in page.get('Contents', []):
+	            if obj['Key'].endswith('.json'):
+	                keys.append(obj['Key'])
+	    return keys
+	
+	# Load and preprocess reviews from each file (I/O bound)
+	def load_and_process_file(key):
+	    s3 = boto3.client('s3')
+	    try:
+	        response = s3.get_object(Bucket=S3_BUCKET, Key=key)
+	        content = response['Body'].read().decode('utf-8')
+	        data = json.loads(content)
+	        texts = []
+	        reviews_in_file_count = 0 
+	
+	        for r in data:
+	            if isinstance(r, dict):
+	                reviews_in_file_count += 1 
+	                text = (r.get('review_detail', '') + ' ' + r.get('review_summary', '')).strip()
+	                if text:
+	                    texts.append(text)
+	        return texts, reviews_in_file_count #Return both the texts and the count
+	    except Exception as e:
+	        print(f" Error in {key}: {e}")
+	        return [], 0 #  Return empty list and 0 count on error
+	
+	# Initialize VADER for each process
+	def init_analyzer_process():
+	    global _analyzer
+	    _analyzer = SentimentIntensityAnalyzer()
+|3,0,2,1,50,0,1751227576,"import os","import json","import time","import nltk","import boto3","from multiprocessing import Pool, cpu_count # Import Pool from multiprocessing","from multiprocessing.pool import ThreadPool # Keep ThreadPool for S3 I/O","from nltk.sentiment.vader import SentimentIntensityAnalyzer","","#nltk.download('vader_lexicon', quiet=True) ","","# S3 Configuration","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'input_files/'","",>37
+|<"def list_json_keys(bucket, prefix):","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    keys = []","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return keys","","# Load and preprocess reviews from each file (I/O bound)","def load_and_process_file(key):","    s3 = boto3.client('s3')",>10
+|<"    try:","        response = s3.get_object(Bucket=S3_BUCKET, Key=key)","        content = response['Body'].read().decode('utf-8')","        data = json.loads(content)","        texts = []","        reviews_in_file_count = 0 ","","        for r in data:","            if isinstance(r, dict):","                reviews_in_file_count += 1 ","                text = (r.get('review_detail', '') + ' ' + r.get('review_summary', '')).strip()","                if text:",>40
+|<"                    texts.append(text)","        return texts, reviews_in_file_count #Return both the texts and the count","    except Exception as e:","        print(f\" Error in {key}: {e}\")","        return [], 0 #  Return empty list and 0 count on error","","# Initialize VADER for each process","def init_analyzer_process():","    global _analyzer","    _analyzer = SentimentIntensityAnalyzer()"
+"3	LINE	0
+	import boto3
+	import json
+	import time
+	from datetime import datetime
+	from multiprocessing import Pool, cpu_count
+	from collections import Counter
+	
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_PREFIX = 'input_files/'
+	SUMMARY_PREFIX = 'summaries/'  # Target folder for storing summary JSON
+	
+	STOP_WORDS = {
+	    'the', 'and', 'to', 'of', 'a', 'in', 'it', 'is', 'i', 'that',
+	    'this', 'was', 'for', 'on', 'with', 'as', 'but', 'at', 'by',
+	    'an', 'be', 'from', 'are', 'have', 'has', 'not', 'they', 'you',
+	    'there', 'he', 'his', 'she', 'her', 'them', 'or', 'so', 'if',
+	    'my', 'we', 'our', 'their', 'what', 'who', 'will', 'just'
+	}
+	
+	def list_json_keys(bucket, prefix):
+	    s3 = boto3.client('s3')
+	    paginator = s3.get_paginator('list_objects_v2')
+	    keys = []
+	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+	        for obj in page.get('Contents', []):
+	            if obj['Key'].endswith('.json'):
+	                keys.append(obj['Key'])
+	    return keys
+	
+	def map_wordcount_from_file(key):
+	    s3 = boto3.client('s3')
+	    try:
+	        response = s3.get_object(Bucket=S3_BUCKET, Key=key)
+	        content = response['Body'].read().decode('utf-8')
+	        data = json.loads(content)
+	
+	        counter = Counter()
+	        reviews_in_file = 0
+	        for r in data:
+	            if isinstance(r, dict):
+	                reviews_in_file += 1
+	                text = r.get('review_detail', '') + ' ' + r.get('review_summary', '')
+	                words = [
+	                    word.lower()
+	                    for word in text.split()
+	                    if word.isalpha() and word.lower() not in STOP_WORDS
+	                ]
+	                counter.update(words)
+	        return counter, reviews_in_file
+	    except Exception as e:
+|3,0,3,1,50,0,1751227313,"import boto3","import json","import time","from datetime import datetime","from multiprocessing import Pool, cpu_count","from collections import Counter","","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'input_files/'","SUMMARY_PREFIX = 'summaries/'  # Target folder for storing summary JSON","","STOP_WORDS = {","    'the', 'and', 'to', 'of', 'a', 'in', 'it', 'is', 'i', 'that',",>66
+|<"    'this', 'was', 'for', 'on', 'with', 'as', 'but', 'at', 'by',","    'an', 'be', 'from', 'are', 'have', 'has', 'not', 'they', 'you',","    'there', 'he', 'his', 'she', 'her', 'them', 'or', 'so', 'if',","    'my', 'we', 'our', 'their', 'what', 'who', 'will', 'just'","}","","def list_json_keys(bucket, prefix):","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    keys = []","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):",>46
+|<"        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return keys","","def map_wordcount_from_file(key):","    s3 = boto3.client('s3')","    try:","        response = s3.get_object(Bucket=S3_BUCKET, Key=key)","        content = response['Body'].read().decode('utf-8')","        data = json.loads(content)","","        counter = Counter()","        reviews_in_file = 0","        for r in data:",>37
+|<"            if isinstance(r, dict):","                reviews_in_file += 1","                text = r.get('review_detail', '') + ' ' + r.get('review_summary', '')","                words = [","                    word.lower()","                    for word in text.split()","                    if word.isalpha() and word.lower() not in STOP_WORDS","                ]","                counter.update(words)","        return counter, reviews_in_file","    except Exception as e:"
+"4	LINE	0
+	import os
+	import json
+	import glob
+	import matplotlib.pyplot as plt
+	import boto3
+	
+	SUMMARY_DIR = './summaries'
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_OUTPUT_PREFIX = 'graph_outputs/'
+	
+	# Key variations to support different summaries
+	THROUGHPUT_KEYS = ['throughput', 'throughput_reviews_per_sec']
+	LATENCY_KEYS = ['latency', 'latency_sec_per_review']
+	TIME_KEYS = ['total_time', 'duration', 'total_time_sec', 'total_mapreduce_time_sec']
+	
+	# S3 uploader
+	def upload_to_s3(local_path, s3_key):
+	    s3 = boto3.client('s3')
+	    try:
+	        s3.upload_file(local_path, S3_BUCKET, s3_key)
+	        print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_key}")
+	    except Exception as e:
+	        print(f"Error uploading {s3_key} to S3: {e}")
+	
+	# Extract first matching key
+	def get_first_matching(data, keys):
+	    for k in keys:
+	        if k in data:
+	            return data[k]
+	    return None
+	
+	# Containers
+	methods = []
+	throughputs = []
+	latencies = []
+	times = []
+	
+	print(f"Loading summary files from: {SUMMARY_DIR}")
+	summary_files = sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json')))
+	
+	for filepath in summary_files:
+	    try:
+	        with open(filepath, 'r') as f:
+	            data = json.load(f)
+	
+	        method = data.get('method', os.path.basename(filepath).split('.')[0])
+	        tput = get_first_matching(data, THROUGHPUT_KEYS)
+	        lat = get_first_matching(data, LATENCY_KEYS)
+	        ttime = get_first_matching(data, TIME_KEYS)
+	
+|3,0,4,1,50,0,1751226662,"import os","import json","import glob","import matplotlib.pyplot as plt","import boto3","","SUMMARY_DIR = './summaries'","S3_BUCKET = 'imdbreviews-scalable'","S3_OUTPUT_PREFIX = 'graph_outputs/'","","# Key variations to support different summaries","THROUGHPUT_KEYS = ['throughput', 'throughput_reviews_per_sec']","LATENCY_KEYS = ['latency', 'latency_sec_per_review']",>86
+|<"TIME_KEYS = ['total_time', 'duration', 'total_time_sec', 'total_mapreduce_time_sec']","","# S3 uploader","def upload_to_s3(local_path, s3_key):","    s3 = boto3.client('s3')","    try:","        s3.upload_file(local_path, S3_BUCKET, s3_key)","        print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_key}\")","    except Exception as e:","        print(f\"Error uploading {s3_key} to S3: {e}\")","","# Extract first matching key","def get_first_matching(data, keys):","    for k in keys:",>23
+|<"        if k in data:","            return data[k]","    return None","","# Containers","methods = []","throughputs = []","latencies = []","times = []","","print(f\"Loading summary files from: {SUMMARY_DIR}\")","summary_files = sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json')))","","for filepath in summary_files:","    try:","        with open(filepath, 'r') as f:","            data = json.load(f)","","        method = data.get('method', os.path.basename(filepath).split('.')[0])",>58
+|<"        tput = get_first_matching(data, THROUGHPUT_KEYS)","        lat = get_first_matching(data, LATENCY_KEYS)","        ttime = get_first_matching(data, TIME_KEYS)",""
+"5	LINE	0
+	import os
+	import json
+	import glob
+	import matplotlib.pyplot as plt
+	import boto3
+	
+	SUMMARY_DIR = './summaries'
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_OUTPUT_PREFIX = 'graph_outputs/'
+	
+	# Key variations to support different summaries
+	THROUGHPUT_KEYS = ['throughput', 'throughput_reviews_per_sec']
+	LATENCY_KEYS = ['latency', 'latency_sec_per_review']
+	TIME_KEYS = ['total_time', 'duration', 'total_time_sec', 'total_mapreduce_time_sec']
+	
+	# S3 uploader
+	def upload_to_s3(local_path, s3_key):
+	    s3 = boto3.client('s3')
+	    try:
+	        s3.upload_file(local_path, S3_BUCKET, s3_key)
+	        print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_key}")
+	    except Exception as e:
+	        print(f"Error uploading {s3_key} to S3: {e}")
+	
+	# Extract first matching key
+	def get_first_matching(data, keys):
+	    for k in keys:
+	        if k in data:
+	            return data[k]
+	    return None
+	
+	# Initialize containers
+	methods = []
+	throughputs = []
+	latencies = []
+	times = []
+	
+	print(f"Loading summary files from: {SUMMARY_DIR}")
+	summary_files = sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json')))
+	
+	for filepath in summary_files:
+	    try:
+	        with open(filepath, 'r') as f:
+	            data = json.load(f)
+	
+	        method = data.get('method', os.path.basename(filepath).split('.')[0])
+	        tput = get_first_matching(data, THROUGHPUT_KEYS)
+	        lat = get_first_matching(data, LATENCY_KEYS)
+	        ttime = get_first_matching(data, TIME_KEYS)
+	
+|3,0,5,1,50,0,1751226548,"import os","import json","import glob","import matplotlib.pyplot as plt","import boto3","","SUMMARY_DIR = './summaries'","S3_BUCKET = 'imdbreviews-scalable'","S3_OUTPUT_PREFIX = 'graph_outputs/'","","# Key variations to support different summaries","THROUGHPUT_KEYS = ['throughput', 'throughput_reviews_per_sec']","LATENCY_KEYS = ['latency', 'latency_sec_per_review']",>86
+|<"TIME_KEYS = ['total_time', 'duration', 'total_time_sec', 'total_mapreduce_time_sec']","","# S3 uploader","def upload_to_s3(local_path, s3_key):","    s3 = boto3.client('s3')","    try:","        s3.upload_file(local_path, S3_BUCKET, s3_key)","        print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_key}\")","    except Exception as e:","        print(f\"Error uploading {s3_key} to S3: {e}\")","","# Extract first matching key","def get_first_matching(data, keys):","    for k in keys:",>23
+|<"        if k in data:","            return data[k]","    return None","","# Initialize containers","methods = []","throughputs = []","latencies = []","times = []","","print(f\"Loading summary files from: {SUMMARY_DIR}\")","summary_files = sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json')))","","for filepath in summary_files:","    try:","        with open(filepath, 'r') as f:","            data = json.load(f)","",>79
+|<"        method = data.get('method', os.path.basename(filepath).split('.')[0])","        tput = get_first_matching(data, THROUGHPUT_KEYS)","        lat = get_first_matching(data, LATENCY_KEYS)","        ttime = get_first_matching(data, TIME_KEYS)",""
 "6	LINE	0
-	# Removed: from multiprocessing import Pool, cpu_count
-|3,0,6,1,1,0,1751140097,"# Removed: from multiprocessing import Pool, cpu_count"
+	import os
+	import json
+	import glob
+	import matplotlib.pyplot as plt
+	import boto3
+	
+	# Configuration
+	SUMMARY_DIR = './summaries'
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_OUTPUT_PREFIX = 'graph_outputs/'
+	
+	# Define mapping from filename prefixes to readable method names
+	METHOD_LABELS = {
+	    'kafka_streaming_summary': 'Streaming',
+	    'hashtag_summary': 'Hashtag (MapReduce)',
+	    'sentiment_summary': 'Sentiment (Hybrid)',
+	    'wordcount_summary': 'Word Count (MapReduce)',
+	    'hashtag_sequential_summary': 'Hashtag (Sequential)',
+	    'sentiment_sequential_summary': 'Sentiment (Sequential)',
+	    'wordcount_sequential_summary': 'Word Count (Sequential)',
+	}
+	
+	# Initialize containers
+	methods = []
+	throughputs = []
+	latencies = []
+	total_times = []
+	
+	# Function to extract values by matching patterns
+	def extract_field(data, *patterns):
+	    for pattern in patterns:
+	        for key in data:
+	            if pattern.lower() in key.lower():
+	                return data[key]
+	    return None
+	
+	# Load and parse JSON summary files
+	print(f"Loading summary files from: {SUMMARY_DIR}")
+	for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	    try:
+	        with open(filepath, 'r') as f:
+	            data = json.load(f)
+	
+	        fname = os.path.basename(filepath)
+	        method = next((label for prefix, label in METHOD_LABELS.items() if fname.startswith(prefix)), fname)
+	
+	        tput = extract_field(data, 'throughput')
+	        lat = extract_field(data, 'latency')
+	        ttime = extract_field(data, 'total_time', 'duration', 'time')
+	
+|3,0,6,1,50,0,1751226485,"import os","import json","import glob","import matplotlib.pyplot as plt","import boto3","","# Configuration","SUMMARY_DIR = './summaries'","S3_BUCKET = 'imdbreviews-scalable'","S3_OUTPUT_PREFIX = 'graph_outputs/'","","# Define mapping from filename prefixes to readable method names","METHOD_LABELS = {","    'kafka_streaming_summary': 'Streaming',","    'hashtag_summary': 'Hashtag (MapReduce)',",>48
+|<"    'sentiment_summary': 'Sentiment (Hybrid)',","    'wordcount_summary': 'Word Count (MapReduce)',","    'hashtag_sequential_summary': 'Hashtag (Sequential)',","    'sentiment_sequential_summary': 'Sentiment (Sequential)',","    'wordcount_sequential_summary': 'Word Count (Sequential)',","}","","# Initialize containers","methods = []","throughputs = []","latencies = []","total_times = []","","# Function to extract values by matching patterns","def extract_field(data, *patterns):",>30
+|<"    for pattern in patterns:","        for key in data:","            if pattern.lower() in key.lower():","                return data[key]","    return None","","# Load and parse JSON summary files","print(f\"Loading summary files from: {SUMMARY_DIR}\")","for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","    try:","        with open(filepath, 'r') as f:","            data = json.load(f)","","        fname = os.path.basename(filepath)",>110
+|<"        method = next((label for prefix, label in METHOD_LABELS.items() if fname.startswith(prefix)), fname)","","        tput = extract_field(data, 'throughput')","        lat = extract_field(data, 'latency')","        ttime = extract_field(data, 'total_time', 'duration', 'time')",""
 "7	LINE	0
-	# Removed: from multiprocessing.pool import ThreadPool
-|3,0,7,1,1,0,1751140096,"# Removed: from multiprocessing.pool import ThreadPool"
+	import os
+	import json
+	import glob
+	import matplotlib.pyplot as plt
+	import boto3
+	
+	# Folder containing local summary JSONs
+	SUMMARY_DIR = './summaries'
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_OUTPUT_PREFIX = 'graph_outputs/'
+	
+	s3 = boto3.client('s3')
+	
+	# Data containers
+	methods = []
+	throughputs = []
+	latencies = []
+	total_times = []
+	
+	# Helper: extract metric using fuzzy key match
+	def extract_field(data, *patterns):
+	    for pattern in patterns:
+	        for key in data:
+	            if pattern in key.lower():
+	                return data[key]
+	    return 0
+	
+	# Mapping from file prefix to readable method name
+	METHOD_LABELS = {
+	    'kafka_streaming_summary': 'Streaming',
+	    'hashtag_summary': 'Hashtag (MapReduce)',
+	    'sentiment_summary': 'Sentiment (Hybrid)',
+	    'wordcount_summary': 'Word Count (MapReduce)',
+	    'hashtag_sequential_summary': 'Hashtag (Sequential)',
+	    'sentiment_sequential_summary': 'Sentiment (Sequential)',
+	    'wordcount_sequential_summary': 'Word Count (Sequential)',
+	}
+	
+	print(f"Loading summary files from: {SUMMARY_DIR}")
+	
+	# Load each summary file and extract metrics
+	for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	    try:
+	        with open(filepath, 'r') as f:
+	            data = json.load(f)
+	
+	        fname = os.path.basename(filepath)
+	        method = next((label for prefix, label in METHOD_LABELS.items() if fname.startswith(prefix)), fname)
+	        methods.append(method)
+	
+|3,0,7,1,50,0,1751226381,"import os","import json","import glob","import matplotlib.pyplot as plt","import boto3","","# Folder containing local summary JSONs","SUMMARY_DIR = './summaries'","S3_BUCKET = 'imdbreviews-scalable'","S3_OUTPUT_PREFIX = 'graph_outputs/'","","s3 = boto3.client('s3')","","# Data containers","methods = []","throughputs = []","latencies = []","total_times = []","","# Helper: extract metric using fuzzy key match",>37
+|<"def extract_field(data, *patterns):","    for pattern in patterns:","        for key in data:","            if pattern in key.lower():","                return data[key]","    return 0","","# Mapping from file prefix to readable method name","METHOD_LABELS = {","    'kafka_streaming_summary': 'Streaming',","    'hashtag_summary': 'Hashtag (MapReduce)',","    'sentiment_summary': 'Sentiment (Hybrid)',","    'wordcount_summary': 'Word Count (MapReduce)',",>59
+|<"    'hashtag_sequential_summary': 'Hashtag (Sequential)',","    'sentiment_sequential_summary': 'Sentiment (Sequential)',","    'wordcount_sequential_summary': 'Word Count (Sequential)',","}","","print(f\"Loading summary files from: {SUMMARY_DIR}\")","","# Load each summary file and extract metrics","for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","    try:","        with open(filepath, 'r') as f:","            data = json.load(f)","",>44
+|<"        fname = os.path.basename(filepath)","        method = next((label for prefix, label in METHOD_LABELS.items() if fname.startswith(prefix)), fname)","        methods.append(method)",""
 "8	LINE	0
-	# Removed: init_analyzer_process function (not needed for sequential execution)
-|3,0,8,1,1,0,1751140082,"# Removed: init_analyzer_process function (not needed for sequential execution)"
+	import os
+	import json
+	import matplotlib.pyplot as plt
+	import glob
+	import boto3
+	
+	# Constants
+	SUMMARY_DIR = './summaries'
+	S3_BUCKET = 'imdbreviews-scalable'
+	S3_OUTPUT_PREFIX = 'graph_outputs/'
+	
+	# Graph output filenames
+	THROUGHPUT_IMG = 'throughput_comparison.png'
+	LATENCY_IMG = 'latency_comparison.png'
+	TIME_IMG = 'total_time_comparison.png'
+	
+	# S3 Client
+	s3 = boto3.client('s3')
+	
+	# Data containers
+	methods = []
+	throughputs = []
+	latencies = []
+	total_times = []
+	
+	# Mapping from filename prefix to readable method name
+	METHOD_LABELS = {
+	    'kafka_streaming_summary': 'Streaming',
+	    'hashtag_summary': 'Hashtag (MapReduce)',
+	    'sentiment_summary': 'Sentiment (Hybrid)',
+	    'wordcount_summary': 'Word Count (MapReduce)',
+	    'hashtag_sequential_summary': 'Hashtag (Sequential)',
+	    'sentiment_sequential_summary': 'Sentiment (Sequential)',
+	    'wordcount_sequential_summary': 'Word Count (Sequential)',
+	}
+	
+	print(" Loading summary files from:", SUMMARY_DIR)
+	
+	# Utility to extract matching value by key pattern
+	def extract_field(data, *field_patterns):
+	    for pattern in field_patterns:
+	        for key in data:
+	            if pattern in key.lower():
+	                return data[key]
+	    return 0
+	
+	
+	# Load and parse JSON summaries
+	for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	    try:
+|3,0,8,1,50,0,1751226244,"import os","import json","import matplotlib.pyplot as plt","import glob","import boto3","","# Constants","SUMMARY_DIR = './summaries'","S3_BUCKET = 'imdbreviews-scalable'","S3_OUTPUT_PREFIX = 'graph_outputs/'","","# Graph output filenames","THROUGHPUT_IMG = 'throughput_comparison.png'","LATENCY_IMG = 'latency_comparison.png'","TIME_IMG = 'total_time_comparison.png'","","# S3 Client","s3 = boto3.client('s3')","","# Data containers",>14
+|<"methods = []","throughputs = []","latencies = []","total_times = []","","# Mapping from filename prefix to readable method name","METHOD_LABELS = {","    'kafka_streaming_summary': 'Streaming',","    'hashtag_summary': 'Hashtag (MapReduce)',","    'sentiment_summary': 'Sentiment (Hybrid)',","    'wordcount_summary': 'Word Count (MapReduce)',","    'hashtag_sequential_summary': 'Hashtag (Sequential)',","    'sentiment_sequential_summary': 'Sentiment (Sequential)',",>64
+|<"    'wordcount_sequential_summary': 'Word Count (Sequential)',","}","","print(\" Loading summary files from:\", SUMMARY_DIR)","","# Utility to extract matching value by key pattern","def extract_field(data, *field_patterns):","    for pattern in field_patterns:","        for key in data:","            if pattern in key.lower():","                return data[key]","    return 0","","","# Load and parse JSON summaries",>73
+|<"for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","    try:"
 "9	LINE	0
-	    # MODIFIED: Replaced ThreadPool.map with a sequential loop
-|3,0,9,1,1,0,1751140075,"    # MODIFIED: Replaced ThreadPool.map with a sequential loop"
+	        total_times.append(find_matching_value(data, ['time', 'duration']))
+|3,0,9,1,1,0,1751226015,"        total_times.append(find_matching_value(data, ['time', 'duration']))"
 
 # File marks:
-'0  5  0  ~/seq_hashtag.py
-|4,48,5,0,1751140211,"~/seq_hashtag.py"
-'1  8  43  ~/seq_sentiment.py
-|4,49,8,43,1751140107,"~/seq_sentiment.py"
-'2  4  0  ~/seq_wordcount.py
-|4,50,4,0,1751139987,"~/seq_wordcount.py"
-'3  80  10  ~/mapreduce_hashtag.py
-|4,51,80,10,1751139611,"~/mapreduce_hashtag.py"
-'4  7  32  ~/mapreduce_wordcount.py
-|4,52,7,32,1751139582,"~/mapreduce_wordcount.py"
-'5  1  4  ~/mapreduce_wordcount.py
-|4,53,1,4,1751139519,"~/mapreduce_wordcount.py"
-'6  11  4  ~/mapreduce_wordcount.py
-|4,54,11,4,1751139519,"~/mapreduce_wordcount.py"
-'7  102  58  ~/mapreduce_sentiment.py
-|4,55,102,58,1751139469,"~/mapreduce_sentiment.py"
-'8  1  0  ~/mapreduce_sentiment.py
-|4,56,1,0,1751139046,"~/mapreduce_sentiment.py"
-'9  9  0  ~/mapreduce_sentiment.py
-|4,57,9,0,1751139046,"~/mapreduce_sentiment.py"
+'0  12  30  ~/mapreduce_hashtag.py
+|4,48,12,30,1751227698,"~/mapreduce_hashtag.py"
+'1  15  30  ~/mapreduce_sentiment.py
+|4,49,15,30,1751227597,"~/mapreduce_sentiment.py"
+'2  133  0  ~/mapreduce_wordcount.py
+|4,50,133,0,1751227379,"~/mapreduce_wordcount.py"
+'3  130  0  ~/seq_sentiment.py
+|4,51,130,0,1751227145,"~/seq_sentiment.py"
+'4  144  0  ~/seq_hashtag.py
+|4,52,144,0,1751227137,"~/seq_hashtag.py"
+'5  1  27  ~/mapreduce_hashtag.py
+|4,53,1,27,1751227127,"~/mapreduce_hashtag.py"
+'6  109  27  ~/mapreduce_hashtag.py
+|4,54,109,27,1751227127,"~/mapreduce_hashtag.py"
+'7  1  26  ~/mapreduce_wordcount.py
+|4,55,1,26,1751227112,"~/mapreduce_wordcount.py"
+'8  96  26  ~/mapreduce_wordcount.py
+|4,56,96,26,1751227112,"~/mapreduce_wordcount.py"
+'9  1  4  ~/mapreduce_sentiment.py
+|4,57,1,4,1751227095,"~/mapreduce_sentiment.py"
 
 # Jumplist (newest first):
--'  5  0  ~/seq_hashtag.py
-|4,39,5,0,1751140211,"~/seq_hashtag.py"
--'  1  0  ~/seq_hashtag.py
-|4,39,1,0,1751140163,"~/seq_hashtag.py"
--'  8  43  ~/seq_sentiment.py
-|4,39,8,43,1751140107,"~/seq_sentiment.py"
--'  8  43  ~/seq_sentiment.py
-|4,39,8,43,1751140107,"~/seq_sentiment.py"
+-'  12  30  ~/mapreduce_hashtag.py
+|4,39,12,30,1751227698,"~/mapreduce_hashtag.py"
+-'  138  0  ~/mapreduce_hashtag.py
+|4,39,138,0,1751227686,"~/mapreduce_hashtag.py"
+-'  1  0  ~/mapreduce_hashtag.py
+|4,39,1,0,1751227682,"~/mapreduce_hashtag.py"
+-'  15  30  ~/mapreduce_sentiment.py
+|4,39,15,30,1751227597,"~/mapreduce_sentiment.py"
+-'  15  30  ~/mapreduce_sentiment.py
+|4,39,15,30,1751227597,"~/mapreduce_sentiment.py"
+-'  131  0  ~/mapreduce_sentiment.py
+|4,39,131,0,1751227583,"~/mapreduce_sentiment.py"
+-'  131  0  ~/mapreduce_sentiment.py
+|4,39,131,0,1751227583,"~/mapreduce_sentiment.py"
+-'  1  0  ~/mapreduce_sentiment.py
+|4,39,1,0,1751227576,"~/mapreduce_sentiment.py"
+-'  1  0  ~/mapreduce_sentiment.py
+|4,39,1,0,1751227576,"~/mapreduce_sentiment.py"
+-'  133  0  ~/mapreduce_wordcount.py
+|4,39,133,0,1751227379,"~/mapreduce_wordcount.py"
+-'  133  0  ~/mapreduce_wordcount.py
+|4,39,133,0,1751227379,"~/mapreduce_wordcount.py"
+-'  133  0  ~/mapreduce_wordcount.py
+|4,39,133,0,1751227379,"~/mapreduce_wordcount.py"
+-'  133  0  ~/mapreduce_wordcount.py
+|4,39,133,0,1751227379,"~/mapreduce_wordcount.py"
+-'  11  39  ~/mapreduce_wordcount.py
+|4,39,11,39,1751227356,"~/mapreduce_wordcount.py"
+-'  11  39  ~/mapreduce_wordcount.py
+|4,39,11,39,1751227356,"~/mapreduce_wordcount.py"
+-'  11  39  ~/mapreduce_wordcount.py
+|4,39,11,39,1751227356,"~/mapreduce_wordcount.py"
+-'  11  39  ~/mapreduce_wordcount.py
+|4,39,11,39,1751227356,"~/mapreduce_wordcount.py"
+-'  124  6  ~/mapreduce_wordcount.py
+|4,39,124,6,1751227324,"~/mapreduce_wordcount.py"
+-'  124  6  ~/mapreduce_wordcount.py
+|4,39,124,6,1751227324,"~/mapreduce_wordcount.py"
+-'  124  6  ~/mapreduce_wordcount.py
+|4,39,124,6,1751227324,"~/mapreduce_wordcount.py"
+-'  124  6  ~/mapreduce_wordcount.py
+|4,39,124,6,1751227324,"~/mapreduce_wordcount.py"
+-'  1  0  ~/mapreduce_wordcount.py
+|4,39,1,0,1751227313,"~/mapreduce_wordcount.py"
+-'  1  0  ~/mapreduce_wordcount.py
+|4,39,1,0,1751227313,"~/mapreduce_wordcount.py"
+-'  1  0  ~/mapreduce_wordcount.py
+|4,39,1,0,1751227313,"~/mapreduce_wordcount.py"
+-'  1  0  ~/mapreduce_wordcount.py
+|4,39,1,0,1751227313,"~/mapreduce_wordcount.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
+-'  130  0  ~/seq_sentiment.py
+|4,39,130,0,1751227145,"~/seq_sentiment.py"
 -'  1  0  ~/seq_sentiment.py
-|4,39,1,0,1751140059,"~/seq_sentiment.py"
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
 -'  1  0  ~/seq_sentiment.py
-|4,39,1,0,1751140059,"~/seq_sentiment.py"
--'  4  0  ~/seq_wordcount.py
-|4,39,4,0,1751139987,"~/seq_wordcount.py"
--'  4  0  ~/seq_wordcount.py
-|4,39,4,0,1751139987,"~/seq_wordcount.py"
--'  4  0  ~/seq_wordcount.py
-|4,39,4,0,1751139987,"~/seq_wordcount.py"
--'  4  0  ~/seq_wordcount.py
-|4,39,4,0,1751139987,"~/seq_wordcount.py"
--'  1  0  ~/seq_wordcount.py
-|4,39,1,0,1751139953,"~/seq_wordcount.py"
--'  1  0  ~/seq_wordcount.py
-|4,39,1,0,1751139953,"~/seq_wordcount.py"
--'  1  0  ~/seq_wordcount.py
-|4,39,1,0,1751139953,"~/seq_wordcount.py"
--'  1  0  ~/seq_wordcount.py
-|4,39,1,0,1751139953,"~/seq_wordcount.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  80  10  ~/mapreduce_hashtag.py
-|4,39,80,10,1751139611,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  1  10  ~/mapreduce_hashtag.py
-|4,39,1,10,1751139591,"~/mapreduce_hashtag.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  7  32  ~/mapreduce_wordcount.py
-|4,39,7,32,1751139582,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  1  0  ~/mapreduce_wordcount.py
-|4,39,1,0,1751139568,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  11  4  ~/mapreduce_wordcount.py
-|4,39,11,4,1751139519,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  78  4  ~/mapreduce_wordcount.py
-|4,39,78,4,1751139506,"~/mapreduce_wordcount.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
--'  102  58  ~/mapreduce_sentiment.py
-|4,39,102,58,1751139469,"~/mapreduce_sentiment.py"
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  1  0  ~/seq_sentiment.py
+|4,39,1,0,1751227142,"~/seq_sentiment.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  144  0  ~/seq_hashtag.py
+|4,39,144,0,1751227137,"~/seq_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  109  27  ~/mapreduce_hashtag.py
+|4,39,109,27,1751227127,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  99  4  ~/mapreduce_hashtag.py
+|4,39,99,4,1751227115,"~/mapreduce_hashtag.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
+-'  96  26  ~/mapreduce_wordcount.py
+|4,39,96,26,1751227112,"~/mapreduce_wordcount.py"
 
 # History of marks within files (newest to oldest):
 
-> ~/seq_hashtag.py
-	*	1751140209	0
-	"	5	0
-	^	125	82
-	.	5	0
-	+	1	14
-	+	1	12
-	+	125	81
-	+	96	0
-	+	84	0
-	+	68	0
-	+	5	0
-
-> ~/seq_sentiment.py
-	*	1751140105	0
-	"	8	43
-	^	8	44
-	.	8	44
-	+	1	14
-	+	1	9
-	+	97	78
-	+	79	0
-	+	77	0
-	+	60	0
-	+	46	0
-	+	6	0
-	+	8	44
-
-> ~/seq_wordcount.py
-	*	1751139983	0
-	"	4	0
-	.	4	0
-	+	1	12
-	+	96	32
-	+	73	0
-	+	4	0
-
 > ~/mapreduce_hashtag.py
-	*	1751139606	0
-	"	80	10
-	^	1	11
-	.	57	11
+	*	1751227696	0
+	"	12	30
+	^	12	31
+	.	12	30
 	+	1	12
 	+	1	11
 	+	1	12
@@ -434,48 +768,31 @@
 	+	1	13
 	+	1	14
 	+	1	12
-	+	85	14
-	+	81	13
-	+	67	12
-	+	59	12
-	+	57	11
-
-> ~/mapreduce_wordcount.py
-	*	1751139579	0
-	"	7	32
-	^	97	33
-	.	97	32
+	+	1	14
+	+	1	13
 	+	1	12
-	+	1	33
-	+	1	71
+	+	1	48
+	+	1	54
+	+	1	39
 	+	1	22
-	+	1	0
-	+	1	11
-	+	1	12
-	+	1	14
-	+	1	12
-	+	1	13
-	+	1	12
-	+	1	14
-	+	1	13
-	+	1	11
-	+	1	12
-	+	1	14
-	+	1	12
-	+	1	11
+	+	1	6
+	+	1	53
+	+	1	83
+	+	1	34
+	+	1	10
+	+	1	2
 	+	1	16
+	+	1	18
+	+	1	5
 	+	1	12
-	+	1	14
-	+	1	11
-	+	1	16
-	+	1	12
-	+	97	32
+	+	137	53
+	+	12	30
 
 > ~/mapreduce_sentiment.py
-	*	1751139467	0
-	"	102	58
-	^	102	59
-	.	98	59
+	*	1751227593	0
+	"	15	30
+	^	15	31
+	.	15	30
 	+	1	12
 	+	1	11
 	+	1	82
@@ -546,33 +863,185 @@
 	+	1	12
 	+	1	71
 	+	1	9
-	+	102	78
-	+	44	16
-	+	10	44
-	+	27	0
-	+	28	27
-	+	34	34
-	+	38	43
-	+	42	45
-	+	45	23
-	+	58	37
-	+	65	52
-	+	66	0
-	+	70	34
-	+	71	73
-	+	73	55
-	+	76	6
-	+	85	0
-	+	89	34
-	+	90	72
-	+	92	5
-	+	97	90
-	+	98	59
+	+	1	78
+	+	1	16
+	+	1	44
+	+	1	0
+	+	1	27
+	+	1	34
+	+	1	43
+	+	1	45
+	+	1	23
+	+	1	37
+	+	1	52
+	+	1	0
+	+	1	34
+	+	1	73
+	+	1	55
+	+	1	6
+	+	1	0
+	+	1	34
+	+	1	72
+	+	1	5
+	+	1	90
+	+	1	59
+	+	1	16
+	+	1	18
+	+	1	9
+	+	130	47
+	+	15	30
+
+> ~/mapreduce_wordcount.py
+	*	1751227356	0
+	"	133	0
+	^	11	40
+	.	11	39
+	+	1	12
+	+	1	33
+	+	1	71
+	+	1	22
+	+	1	0
+	+	1	11
+	+	1	12
+	+	1	14
+	+	1	12
+	+	1	13
+	+	1	12
+	+	1	14
+	+	1	13
+	+	1	11
+	+	1	12
+	+	1	14
+	+	1	12
+	+	1	11
+	+	1	16
+	+	1	12
+	+	1	14
+	+	1	11
+	+	1	16
+	+	1	12
+	+	1	32
+	+	1	12
+	+	1	14
+	+	1	12
+	+	132	63
+	+	11	39
+
+> ~/seq_sentiment.py
+	*	1751227144	0
+	"	130	0
+	^	130	0
+	.	129	31
+	+	1	14
+	+	1	9
+	+	1	78
+	+	1	0
+	+	1	9
+	+	129	31
+
+> ~/seq_hashtag.py
+	*	1751227134	0
+	"	144	0
+	^	144	0
+	.	143	31
+	+	1	14
+	+	1	12
+	+	1	81
+	+	1	0
+	+	1	12
+	+	143	31
+
+> ~/visualization.py
+	*	1751226918	0
+	"	33	0
+	^	11	34
+	.	11	34
+	+	1	9
+	+	1	7
+	+	1	16
+	+	1	7
+	+	1	0
+	+	1	59
+	+	1	7
+	+	1	0
+	+	1	9
+	+	91	39
+	+	11	34
+
+> ~/seq_wordcount.py
+	*	1751224327	0
+	"	6	0
+	^	6	0
+	.	35	15
+	+	1	12
+	+	1	32
+	+	1	0
+	+	1	12
+	+	139	31
+	+	125	13
+	+	117	13
+	+	108	11
+	+	102	11
+	+	100	12
+	+	98	11
+	+	90	14
+	+	32	16
+	+	35	15
+
+> ~/imdb_summary.py
+	*	1751223016	0
+	"	136	17
+	^	136	18
+	.	136	18
+	+	1	23
+	+	1	67
+	+	1	66
+	+	1	0
+	+	1	49
+	+	1	67
+	+	1	0
+	+	1	92
+	+	1	12
+	+	1	23
+	+	1	13
+	+	1	12
+	+	126	23
+	+	138	16
+	+	136	18
+
+> ~/imdb_producer_s3.py
+	*	1751222114	0
+	"	13	32
+	^	13	33
+	.	13	32
+	+	1	83
+	+	1	12
+	+	1	94
+	+	1	14
+	+	1	11
+	+	1	12
+	+	1	11
+	+	1	16
+	+	1	1
+	+	1	20
+	+	1	2
+	+	1	12
+	+	1	90
+	+	1	12
+	+	169	0
+	+	1	12
+	+	92	90
+	+	57	29
+	+	29	25
+	+	14	28
+	+	10	16
+	+	13	32
 
 > ~/imdb_consumer_kafka.py
-	*	1751138298	0
-	"	320	4
-	.	320	0
+	*	1751221408	0
+	"	21	32
+	^	21	33
+	.	21	33
 	+	1	9
 	+	1	10
 	+	1	0
@@ -603,46 +1072,9 @@
 	+	1	0
 	+	1	9
 	+	1	0
-	+	320	0
-
-> ~/imdb_producer_s3.py
-	*	1751138117	0
-	"	92	0
-	^	92	0
-	.	30	2
-	+	1	83
-	+	1	12
-	+	91	94
-	+	91	14
-	+	74	11
-	+	72	12
-	+	68	12
-	+	66	11
-	+	62	16
-	+	55	1
-	+	52	20
-	+	45	20
-	+	40	2
-	+	30	2
-
-> ~/imdb_summary.py
-	*	1751132368	0
-	"	126	22
-	^	126	23
-	.	126	22
-	+	1	23
-	+	1	67
-	+	1	66
-	+	1	0
-	+	1	49
-	+	1	67
-	+	1	0
-	+	1	92
-	+	1	12
-	+	1	23
-	+	1	13
-	+	1	12
-	+	126	22
+	+	321	0
+	+	20	64
+	+	21	33
 
 > ~/file_split.py
 	*	1751056252	0
