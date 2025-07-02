@@ -1,7 +1,7 @@
 import boto3
 import json
 from collections import Counter, defaultdict
-import re # Import regex for timestamp extraction
+import re
 
 S3_BUCKET = 'imdbreviews-scalable'
 S3_PREFIX = 'kafka-consumer-outputs/'
@@ -20,73 +20,47 @@ def load_json_from_s3(key):
     response = s3.get_object(Bucket=S3_BUCKET, Key=key)
     return json.loads(response['Body'].read().decode('utf-8'))
 
+def extract_timestamp_from_key(key):
+    match = re.search(r'summary_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+)\.json', key)
+    return match.group(1) if match else ""
+
 def summarize_outputs():
-    keys = list_json_objects(S3_BUCKET, S3_PREFIX)
-    print(f"Found {len(keys)} summary files")
+    keys = sorted(list_json_objects(S3_BUCKET, S3_PREFIX), key=extract_timestamp_from_key)
+    if not keys:
+        print("No summary files found.")
+        return
 
-    max_total_records_processed_overall = 0 # To store the ultimate total reviews
+    # Latest file is assumed to be the last in sorted list
+    final_key = keys[-1]
+    final_summary = load_json_from_s3(final_key)
 
-    total_sentiment = 0.0
-    total_spoiler_count = 0
+    max_total_records_processed_overall = 0
+    total_sentiment_weighted = 0.0
+    total_reviews_for_sentiment = 0
     total_duration = 0.0
-
-    # These will now track weighted averages or sums
-    weighted_sentiment_sum = 0.0
-    weighted_spoiler_count_sum = 0.0
-    total_records_for_averages = 0 # To track total records contributing to avg sentiment/spoiler
-
-    # For avg latency and throughput, we need to sum up individual batch durations and records
-    total_records_for_avg_latency_throughput = 0
-    total_duration_for_avg_latency_throughput = 0.0
-
+    total_records = 0
+    total_run_time_sec = final_summary.get('total_run_time_sec', 0.0)
 
     word_counter = Counter()
     movie_sentiments = defaultdict(list)
 
-    # To track the last seen overall records for correct total
-    last_overall_records = 0
-
-    # Sort keys by timestamp to ensure we process in order and get the latest overall count
-    # Assuming filenames are like summary_2025-06-28T17-02-36-350486.json
-    def extract_timestamp_from_key(key):
-        match = re.search(r'summary_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+)\.json', key)
-        if match:
-            return match.group(1)
-        return "" # Or handle error
-
-    keys.sort(key=extract_timestamp_from_key)
-
-
     for key in keys:
         data = load_json_from_s3(key)
 
-        # Update the maximum total records processed overall
-        current_overall_records = data.get('total_records_processed_overall', 0)
-        if current_overall_records > max_total_records_processed_overall:
-            max_total_records_processed_overall = current_overall_records
+        current_total = data.get('total_records_processed_overall', 0)
+        if current_total > max_total_records_processed_overall:
+            max_total_records_processed_overall = current_total
 
-        # Use records_in_batch for calculations that are *per batch*
-        batch_reviews = data.get('records_in_batch', 0)
-        current_duration = data.get('duration_sec_current_interval', 0.0)
+        count = data.get('records_in_batch', 0)
+        duration = data.get('duration_sec_current_interval', 0.0)
 
-        # Accumulate for average latency and throughput
-        total_records_for_avg_latency_throughput += batch_reviews
-        total_duration_for_avg_latency_throughput += current_duration
+        total_duration += duration
+        total_records += count
 
-
-        # For avg_sentiment and avg_spoiler_percent, we need to weight them by the number of reviews in that batch
-        # The 'avg_sentiment_window' and 'spoiler_percent_window' are averages for that specific window,
-        # so we need to multiply by the batch_reviews to get the total "sentiment points" or "spoiler points" for that batch
         avg_sent = data.get('avg_sentiment_window')
-        if avg_sent is not None and batch_reviews > 0:
-            weighted_sentiment_sum += avg_sent * batch_reviews
-            total_records_for_averages += batch_reviews # Add to the count for the overall weighted average
-
-        spoiler_pct = data.get('spoiler_percent_window')
-        if spoiler_pct is not None and batch_reviews > 0:
-            weighted_spoiler_count_sum += (spoiler_pct / 100) * batch_reviews # Convert percentage to a proportion of reviews
-            # No need to add to total_records_for_averages again, it's the same base count
-
+        if avg_sent is not None and count > 0:
+            total_sentiment_weighted += avg_sent * count
+            total_reviews_for_sentiment += count
 
         for word, count in data.get('top_words_window', []):
             word_counter[word] += count
@@ -94,21 +68,26 @@ def summarize_outputs():
         for movie, score in data.get('sentiment_by_movie_current_window', {}).items():
             movie_sentiments[movie].append(score)
 
+    avg_sentiment = round(total_sentiment_weighted / total_reviews_for_sentiment, 4) if total_reviews_for_sentiment else None
+    avg_throughput = round(total_records / total_duration, 2) if total_duration else None
+    avg_latency = round(total_duration / total_records, 4) if total_records else None
+
+    top_words = word_counter.most_common(10)
     movie_avg_sentiment = {
         movie: round(sum(scores) / len(scores), 3)
         for movie, scores in movie_sentiments.items()
     }
-
-    top_words = word_counter.most_common(10)
     top_movies = sorted(movie_avg_sentiment.items(), key=lambda x: x[1], reverse=True)[:10]
 
     summary = {
-        'total_reviews': max_total_records_processed_overall, # This is the corrected value
-        'total_duration_sec': round(total_duration_for_avg_latency_throughput, 2), # Sum of all individual batch durations
-        'avg_throughput': round(total_records_for_avg_latency_throughput / total_duration_for_avg_latency_throughput, 2) if total_duration_for_avg_latency_throughput else None,
-        'avg_latency_sec': round(total_duration_for_avg_latency_throughput / total_records_for_avg_latency_throughput, 4) if total_records_for_avg_latency_throughput else None,
-        'avg_sentiment': round(weighted_sentiment_sum / total_records_for_averages, 4) if total_records_for_averages else None,
-        'avg_spoiler_percent': round(100 * weighted_spoiler_count_sum / total_records_for_averages, 2) if total_records_for_averages else None,
+        'total_reviews': max_total_records_processed_overall,
+        'total_run_time_sec': total_run_time_sec,
+        'avg_sentiment': avg_sentiment,
+        'avg_throughput': avg_throughput,
+        'avg_latency_sec': avg_latency,
+        'positive_count_total': final_summary.get('positive_count_total', 0),
+        'neutral_count_total': final_summary.get('neutral_count_total', 0),
+        'negative_count_total': final_summary.get('negative_count_total', 0),
         'top_10_words': top_words,
         'top_10_movies_sentiment': top_movies
     }
@@ -125,14 +104,3 @@ def summarize_outputs():
 if __name__ == "__main__":
     summarize_outputs()
 
-    summary_key = f"summaries/kafka_streaming_summary_{int(time.time())}.json"
-    try:
-        s3.put_object(
-            Bucket=S3_BUCKET,
-            Key=summary_key,
-            Body=json.dumps(summary, indent=2),
-            ContentType='application/json'
-        )
-        print(f"\n Summary saved to s3://{S3_BUCKET}/{summary_key}")
-    except Exception as e:
-        print(f" Failed to save summary to S3: {e}")

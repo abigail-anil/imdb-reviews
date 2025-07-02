@@ -2,137 +2,212 @@ import boto3
 import json
 import re
 import time
+from datetime import datetime
+import os # For os.getpid() in logging
 from multiprocessing import Pool, cpu_count
 from collections import Counter
+import logging
+from botocore.config import Config
+from botocore.exceptions import ClientError
 
-# Config
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# ---------- Configuration ----------
 S3_BUCKET = 'imdbreviews-scalable'
-S3_PREFIX = 'input_files/'
-SUMMARY_PREFIX = 'summaries/'
-SUMMARY_BASE_NAME = 'mapreduce_hashtag_summary'
+S3_INPUT_PREFIX = 'cleaned_files/' 
 
 # Stop-word-style banned hashtags
-stop_tags = {
+STOP_TAGS = {
     'the', 'and', 'you', 'but', 'was', 'are', 'for', 'have', 'not',
     'his', 'her', 'she', 'there', 'with', 'this', 'that', 'what',
     'in', 'on', 'out', 'at', 'by', 'all', 'spoiler', 'movie', 'film',
-    'one', 'more', 'some', 'just', 'from', 'like', 'contains', 'commentessentially'
+    'one', 'more', 'some', 'just', 'from', 'like', 'contains', 'commentessentially',
+    'review', 'summary', 'detail', 'imdb', 'good', 'bad', 'great', 'really',
+    'watch', 'seen', 'time', 'story', 'character', 'acting', 'ending', 'plot'
 }
 
-def list_json_keys(bucket, prefix):
-    s3 = boto3.client('s3')
-    paginator = s3.get_paginator('list_objects_v2')
+# Configure Boto3 client for better performance and stability
+BOTO_CONFIG = Config(
+    read_timeout=900,
+    connect_timeout=900,
+    retries={'max_attempts': 10, 'mode': 'standard'}
+)
+
+# Global S3 client for the main process (for listing files)
+_global_s3_client = boto3.client('s3', config=BOTO_CONFIG)
+
+# Global S3 client for worker processes (initialized once per process)
+_worker_s3_client = None
+
+# Step 1: List all JSON files in S3
+def list_json_keys(bucket: str, prefix: str) -> list[str]:
+    """Lists all JSON object keys within a given S3 bucket and prefix."""
+    logging.info(f"Listing JSON objects in s3://{bucket}/{prefix}...")
     keys = []
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        for obj in page.get('Contents', []):
-            if obj['Key'].endswith('.json'):
-                keys.append(obj['Key'])
+    paginator = _global_s3_client.get_paginator('list_objects_v2')
+    try:
+        pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+        for page in pages:
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                if key.endswith('.json') and not key.endswith('/'): # Ensure it's a file
+                    keys.append(key)
+    except ClientError as e:
+        logging.error(f"Error listing objects in S3: {e}")
+        raise # Re-raise to halt if we can't get file list
+    logging.info(f"Found {len(keys)} JSON files in s3://{bucket}/{prefix}.")
     return keys
 
-def delete_existing_summaries(bucket, prefix, base_name):
-    print(f"Checking for old summaries with prefix '{prefix + base_name}'...")
-    s3 = boto3.client('s3')
-    all_keys = list_json_keys(bucket, prefix)
-    matching_keys = [key for key in all_keys if key.startswith(prefix + base_name)]
-    
-    if matching_keys:
-        for key in matching_keys:
-            print(f" - Deleting: {key}")
-            s3.delete_object(Bucket=bucket, Key=key)
-        print("Old summaries deleted.")
-    else:
-        print("No old summaries found to delete.")
+# Initializer for multiprocessing pool workers
+def init_worker():
+    """Initializes a dedicated Boto3 S3 client for each worker process."""
+    global _worker_s3_client
+    _worker_s3_client = boto3.client('s3', config=BOTO_CONFIG)
+    logging.info(f"Worker process {os.getpid()} initialized S3 client.")
 
-def fetch_reviews_from_s3(key_bucket_pair):
+# Step 2: Fetch reviews from one file
+# Return (list of valid reviews, count of valid reviews)
+def fetch_reviews_from_s3(key_bucket_pair: tuple[str, str]) -> tuple[list[dict], int]:
+    """
+    Fetches a single JSON file from S3, parses it, and extracts valid review dictionaries.
+    Returns a tuple of (list of valid review dicts, count of valid reviews).
+    """
     key, bucket = key_bucket_pair
-    s3 = boto3.client('s3')
+    
+    # Use the S3 client initialized for this worker process
+    if _worker_s3_client is None:
+        init_worker() # Fallback, should be handled by Pool initializer
+    current_s3_client = _worker_s3_client
+
     try:
-        response = s3.get_object(Bucket=bucket, Key=key)
+        response = current_s3_client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read().decode('utf-8')
         data = json.loads(content)
-        valid_reviews = [r for r in data if isinstance(r, dict)]
+        
+        valid_reviews = []
+        if isinstance(data, list):
+            for r in data:
+                if isinstance(r, dict):
+                    valid_reviews.append(r)
+        elif isinstance(data, dict): # Handle case where JSON contains a single review object
+            valid_reviews.append(data)
+        
         return valid_reviews, len(valid_reviews)
+    except ClientError as e:
+        logging.error(f"S3 client error reading {key}: {e}")
+        return [], 0
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decoding error for {key}: {e}. File might be corrupted or not valid JSON.")
+        return [], 0
     except Exception as e:
-        print(f"Error reading {key}: {e}")
+        logging.error(f"An unexpected error occurred while reading {key}: {e}")
         return [], 0
 
-def extract_hashtags(review):
-    text = review.get("review_detail", "") + " " + review.get("review_summary", "")
+# Step 3: Extract hashtags from a single review
+def extract_hashtags(review: dict) -> list[str]:
+    """
+    Extracts relevant hashtags from a single review dictionary.
+    Hashtags must be at least 3 alphabetical characters long and not in STOP_TAGS.
+    """
+    # Use .get() with default empty string for robustness
+    text = str(review.get("review_detail", "")) + " " + str(review.get("review_summary", ""))
+    
+    # Regex: (?<!\w)#([a-zA-Z]{3,})\b
+    # (?<!\w) - Negative lookbehind, ensures no word character before # (e.g., prevents "abc#tag")
+    # # - Matches the literal hash symbol
+    # ([a-zA-Z]{3,}) - Captures only letters, at least 3 characters long (the actual tag)
+    # \b - Word boundary to ensure the tag ends properly (e.g., #tag. would match only #tag)
     raw_tags = re.findall(r'(?<!\w)#([a-zA-Z]{3,})\b', text)
+    
+    # Convert to lowercase and prepend '#' for consistency, then filter by STOP_TAGS
     return [
         f"#{tag.lower()}"
         for tag in raw_tags
-        if tag.lower() not in stop_tags
+        if tag.lower() not in STOP_TAGS
     ]
 
-# Main
+# Main execution
 if __name__ == "__main__":
-    start = time.time()
+    start_total_time = time.time()
+    
+    logging.info("Starting hashtag extraction process...")
+    logging.info("Listing S3 files...")
+    keys = list_json_keys(S3_BUCKET, S3_INPUT_PREFIX)
+    
+    if not keys:
+        logging.warning("No JSON files found in the input prefix. Exiting.")
+        exit()
 
-    print("Listing S3 review files...")
-    keys = list_json_keys(S3_BUCKET, S3_PREFIX)
-    print(f"Found {len(keys)} files. Loading reviews in parallel...")
+    logging.info(f"Found {len(keys)} files. Loading reviews in parallel...")
+    num_fetch_processes = cpu_count()
+    # Calculate chunk size for fetching files
+    # A chunk_size of 1 is often fine for I/O bound tasks if files vary greatly in size
+    # For many small files, a larger chunk_size might reduce overhead.
+    fetch_chunk_size = max(1, len(keys) // (num_fetch_processes * 2))
+    logging.info(f"Using {num_fetch_processes} processes with chunk_size={fetch_chunk_size} for fetching reviews.")
 
-    with Pool(cpu_count()) as pool:
-        all_reviews_and_counts_nested = pool.map(fetch_reviews_from_s3, [(key, S3_BUCKET) for key in keys])
+    # Step 4: Fetch reviews from S3 in parallel
+    # Use initializer to ensure each process has its own S3 client
+    with Pool(processes=num_fetch_processes, initializer=init_worker) as pool:
+        # pool.map returns a list of (reviews_list, count) tuples
+        all_reviews_and_counts_nested = pool.map(fetch_reviews_from_s3, [(key, S3_BUCKET) for key in keys], chunksize=fetch_chunk_size)
 
+    # Flatten all reviews and sum up total reviews processed
     reviews = []
     total_reviews_processed = 0
-    for review_list, count in all_reviews_and_counts_nested:
-        reviews.extend(review_list)
-        total_reviews_processed += count
+    for review_list_from_file, count_from_file in all_reviews_and_counts_nested:
+        reviews.extend(review_list_from_file)
+        total_reviews_processed += count_from_file
 
-    print(f"Processing {len(reviews)} reviews for hashtags...")
-    print(f"Total reviews processed: {total_reviews_processed}")
+    if not reviews:
+        logging.warning("No valid reviews found after fetching all files. Exiting.")
+        exit()
 
-    with Pool(cpu_count()) as pool:
-        hashtags_nested = pool.map(extract_hashtags, reviews)
+    logging.info(f"Loaded {len(reviews)} review objects for hashtag extraction.")
+    logging.info(f"Total actual reviews counted from files: {total_reviews_processed}")
+    
+    logging.info(f"Processing {len(reviews)} reviews for hashtags in parallel...")
+    num_extract_processes = cpu_count()
+    # Calculate chunk size for hashtag extraction (CPU bound)
+    extract_chunk_size = max(1, len(reviews) // (num_extract_processes * 4)) # More aggressive chunking
+    logging.info(f"Using {num_extract_processes} processes with chunk_size={extract_chunk_size} for hashtag extraction.")
 
+    # Step 5: Extract hashtags in parallel
+    # This Pool does not need an S3 client, so no initializer is required
+    with Pool(processes=num_extract_processes) as pool:
+        hashtags_nested = pool.map(extract_hashtags, reviews, chunksize=extract_chunk_size)
+
+    # Flatten and count
     all_tags = [tag for sublist in hashtags_nested for tag in sublist]
     hashtag_counter = Counter(all_tags)
 
-    top_hashtags = [(tag, count) for tag, count in hashtag_counter.most_common(20) if count >= 2]
+    # Top hashtags (at least 2 times)
+    # Using most_common(None) gets all items, then filter. This is fine for reasonable number of unique tags.
+    # If millions of unique tags, consider a different approach for filtering.
+    top_hashtags = [(tag, count) for tag, count in hashtag_counter.most_common() if count >= 2]
+    # Sort again by count in descending order, then alphabetically for ties (most_common already does this, but for clarity)
+    top_hashtags.sort(key=lambda x: (-x[1], x[0]))
+    # Limit to top 20 after filtering for count >= 2
+    top_hashtags = top_hashtags[:20]
 
-    print("\nTop Hashtags:")
-    for tag, count in top_hashtags:
-        print(f"{tag}: {count}")
+    # Output
+    logging.info("\n--- Top Hashtags ---")
+    if top_hashtags:
+        for tag, count in top_hashtags:
+            logging.info(f"{tag}: {count}")
+    else:
+        logging.info("No hashtags found matching criteria.")
 
-    end = time.time()
-    total_time = round(end - start, 2)
+    end_total_time = time.time()
+    total_time = round(end_total_time - start_total_time, 2)
 
+    # Calculate Throughput and Latency based on total_reviews_processed
     throughput = round(total_reviews_processed / total_time, 2) if total_time > 0 else 0
     latency = round(total_time / total_reviews_processed, 4) if total_reviews_processed > 0 else 0
 
-    print(f"\nTotal Time: {total_time} seconds")
-    print(f"Throughput: {throughput} reviews/second")
-    print(f"Latency: {latency} seconds/review")
-
-    # Prepare summary data
-    summary_data = {
-        "method": "Parallel Hashtag Analysis",
-        "total_files_processed": len(keys),
-        "total_reviews_processed": total_reviews_processed,
-        "top_hashtags": top_hashtags,
-        "total_time_sec": total_time,
-        "throughput_reviews_per_sec": throughput,
-        "latency_sec_per_review": latency,
-        "timestamp_utc": time.strftime("%Y-%m-%dT%H-%M-%S", time.gmtime())
-    }
-
-    # Delete old summaries with same prefix
-    delete_existing_summaries(S3_BUCKET, SUMMARY_PREFIX, SUMMARY_BASE_NAME)
-
-    # Save new summary
-    summary_key = f"{SUMMARY_PREFIX}{SUMMARY_BASE_NAME}_{int(time.time())}.json"
-    try:
-        s3 = boto3.client('s3')
-        s3.put_object(
-            Bucket=S3_BUCKET,
-            Key=summary_key,
-            Body=json.dumps(summary_data, indent=2),
-            ContentType='application/json'
-        )
-        print(f"\nHashtag summary saved to s3://{S3_BUCKET}/{summary_key}")
-    except Exception as e:
-        print(f"Failed to upload summary to S3: {e}")
-
+    logging.info(f"\n--- Performance Summary ---")
+    logging.info(f"Total Time: {total_time} seconds")
+    logging.info(f"Throughput: {throughput} reviews/second")
+    logging.info(f"Latency: {latency} seconds/review")
+    logging.info(" Hashtag extraction complete.")

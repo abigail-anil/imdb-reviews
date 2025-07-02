@@ -5,7 +5,7 @@ from io import BytesIO
 
 # === CONFIG ===
 BUCKET_NAME = 'imdbreviews-scalable'
-INPUT_KEY = 'input_files/part-01.json'      # Change this
+INPUT_KEY = 'input_files/part-02.json'      # Change this
 CHUNK_SIZE = 100_000
 OUTPUT_PREFIX = 'input_chunks/'                   # Change if needed
 

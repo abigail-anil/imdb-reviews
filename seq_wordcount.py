@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime
 
 S3_BUCKET = 'imdbreviews-scalable'
-S3_PREFIX = 'input_files/'
+S3_PREFIX = 'cleaned_files/'
 SUMMARY_OUTPUT_PREFIX = 'summaries/'
 SUMMARY_PREFIX_MATCH = 'wordcount_sequential_summary_'
 

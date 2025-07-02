@@ -9,3 +9,4 @@ kafka_2.13-3.7.0/
 nltk_data/
 .cache/
 kafka_2.13-3.7.0.tgz
+*.png
