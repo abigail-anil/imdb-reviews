@@ -11,15 +11,15 @@
 # hlsearch on (H) or off (h):
 ~h
 # Last Search Pattern:
-~MSle0~/total_records_processed
+~MSle0~/method
 
 # Command Line History (newest to oldest):
 :wq!
-|2,0,1751486931,,"wq!"
+|2,0,1751497028,,"wq!"
 :q
-|2,0,1751486576,,"q"
+|2,0,1751496876,,"q"
 :q!
-|2,0,1751450291,,"q!"
+|2,0,1751495309,,"q!"
 :wq1
 |2,0,1751386587,,"wq1"
 :950
@@ -30,6 +30,22 @@
 |2,0,1751046366,,"Q"
 
 # Search String History (newest to oldest):
+?/method
+|2,1,1751494842,47,"method"
+?/sentiment_counts
+|2,1,1751493772,47,"sentiment_counts"
+?/total_cate
+|2,1,1751493520,47,"total_cate"
+?/sentiment counts
+|2,1,1751493506,47,"sentiment counts"
+?/stream
+|2,1,1751492950,47,"stream"
+?/senti
+|2,1,1751490752,47,"senti"
+?/total_
+|2,1,1751490617,47,"total_"
+?/total_cat
+|2,1,1751490611,47,"total_cat"
 ?/total_records_processed
 |2,1,1751461739,47,"total_records_processed"
 ?/message.max.bytes
@@ -121,414 +137,497 @@
 
 # Registers:
 "2	LINE	0
-	import boto3
+	import os
 	import json
-	from collections import Counter, defaultdict
-	import re
+	import glob
+	import boto3
+	import matplotlib.pyplot as plt
+	import numpy as np
+	from collections import Counter
+	from wordcloud import WordCloud
 	
+	# --- Config ---
+	SUMMARY_DIR = './graph_summaries'
+	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
 	S3_BUCKET = 'imdbreviews-scalable'
-	S3_PREFIX = 'kafka-consumer-outputs/'
+	S3_SUMMARY_PREFIX = 'summaries/'
 	
-	s3 = boto3.client('s3')
+	os.makedirs(SUMMARY_DIR, exist_ok=True)
 	
-	def list_json_objects(bucket, prefix):
-	    objects = []
+	# --- S3 download ---
+	def download_summaries_from_s3():
+	    s3 = boto3.client('s3')
 	    paginator = s3.get_paginator('list_objects_v2')
-	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-	        if 'Contents' in page:
-	            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))
-	    return objects
+	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
+	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
+	        for obj in page.get('Contents', []):
+	            key = obj['Key']
+	            if key.endswith('.json'):
+	                filename = os.path.basename(key)
+	                local_path = os.path.join(SUMMARY_DIR, filename)
+	                s3.download_file(S3_BUCKET, key, local_path)
+	                print(f"Downloaded: {filename}")
 	
-	def load_json_from_s3(key):
-	    response = s3.get_object(Bucket=S3_BUCKET, Key=key)
-	    return json.loads(response['Body'].read().decode('utf-8'))
+	# --- Upload to S3 ---
+	def upload_to_s3(file):
+	    s3 = boto3.client('s3')
+	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
+	    s3.upload_file(file, S3_BUCKET, s3_path)
+	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
 	
-	def extract_timestamp_from_key(key):
-	    match = re.search(r'summary_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+)\.json', key)
-	    return match.group(1) if match else ""
+	# --- Parse summaries ---
+	def parse_summary_files():
+	    grouped_data = {}
+	    sentiment_data = Counter()
+	    word_freq = Counter()
+	    movie_sentiments = {}
 	
-	def summarize_outputs():
-	    keys = sorted(list_json_objects(S3_BUCKET, S3_PREFIX), key=extract_timestamp_from_key)
+	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	        try:
+	            with open(filepath, 'r') as f:
+	                summary = json.load(f)
 	
-	    max_total_records_processed_overall = 0
-	    total_sentiment_weighted = 0.0
-	    total_reviews_for_sentiment = 0
-	    total_duration = 0.0
-	    total_records = 0
-	    total_run_time_sec = 0.0
-	
-	    total_positive = 0
-	    total_neutral = 0
-	    total_negative = 0
-	
-	    word_counter = Counter()
-	    movie_sentiments = defaultdict(list)
-	
-	    for key in keys:
-	        data = load_json_from_s3(key)
-	
-	        current_total = data.get('total_records_processed_overall', 0)
-	        if current_total > max_total_records_processed_overall:
-	            max_total_records_processed_overall = current_total
-	
-|3,0,2,1,50,0,1751464623,"import boto3","import json","from collections import Counter, defaultdict","import re","","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'kafka-consumer-outputs/'","","s3 = boto3.client('s3')","","def list_json_objects(bucket, prefix):","    objects = []","    paginator = s3.get_paginator('list_objects_v2')","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):","        if 'Contents' in page:",>100
-|<"            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))","    return objects","","def load_json_from_s3(key):","    response = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(response['Body'].read().decode('utf-8'))","","def extract_timestamp_from_key(key):","    match = re.search(r'summary_(\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d+)\\.json', key)","    return match.group(1) if match else \"\"","",>26
-|<"def summarize_outputs():","    keys = sorted(list_json_objects(S3_BUCKET, S3_PREFIX), key=extract_timestamp_from_key)","","    max_total_records_processed_overall = 0","    total_sentiment_weighted = 0.0","    total_reviews_for_sentiment = 0","    total_duration = 0.0","    total_records = 0","    total_run_time_sec = 0.0","","    total_positive = 0","    total_neutral = 0","    total_negative = 0","","    word_counter = Counter()","    movie_sentiments = defaultdict(list)","",>22
-|<"    for key in keys:","        data = load_json_from_s3(key)","","        current_total = data.get('total_records_processed_overall', 0)","        if current_total > max_total_records_processed_overall:","            max_total_records_processed_overall = current_total",""
+|3,0,2,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
+|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
+|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
+|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
 "3	LINE	0
-	import boto3
+	import os
 	import json
-	import time
-	import re
-	from collections import Counter, defaultdict
+	import glob
+	import boto3
+	import matplotlib.pyplot as plt
+	import numpy as np
+	from collections import Counter
+	from wordcloud import WordCloud
 	
+	# --- Config ---
+	SUMMARY_DIR = './graph_summaries'
+	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
 	S3_BUCKET = 'imdbreviews-scalable'
-	S3_PREFIX = 'kafka-consumer-outputs/'
+	S3_SUMMARY_PREFIX = 'summaries/'
 	
-	s3 = boto3.client('s3')
+	os.makedirs(SUMMARY_DIR, exist_ok=True)
 	
-	def list_json_objects(bucket, prefix):
-	    objects = []
+	# --- S3 download ---
+	def download_summaries_from_s3():
+	    s3 = boto3.client('s3')
 	    paginator = s3.get_paginator('list_objects_v2')
-	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-	        if 'Contents' in page:
-	            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))
-	    return objects
+	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
+	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
+	        for obj in page.get('Contents', []):
+	            key = obj['Key']
+	            if key.endswith('.json'):
+	                filename = os.path.basename(key)
+	                local_path = os.path.join(SUMMARY_DIR, filename)
+	                s3.download_file(S3_BUCKET, key, local_path)
+	                print(f"Downloaded: {filename}")
 	
-	def load_json_from_s3(key):
-	    response = s3.get_object(Bucket=S3_BUCKET, Key=key)
-	    return json.loads(response['Body'].read().decode('utf-8'))
+	# --- Upload to S3 ---
+	def upload_to_s3(file):
+	    s3 = boto3.client('s3')
+	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
+	    s3.upload_file(file, S3_BUCKET, s3_path)
+	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
 	
-	def summarize_outputs():
-	    keys = list_json_objects(S3_BUCKET, S3_PREFIX)
-	    print(f"Found {len(keys)} summary files")
+	# --- Parse summaries ---
+	def parse_summary_files():
+	    grouped_data = {}
+	    sentiment_data = Counter()
+	    word_freq = Counter()
+	    movie_sentiments = {}
 	
-	    max_total_records_processed_overall = 0
-	    weighted_sentiment_sum = 0.0
-	    total_records_for_averages = 0
-	    total_run_time_sec = 0.0
-	    word_counter = Counter()
-	    movie_sentiments = defaultdict(list)
-	    total_positive = 0
-	    total_neutral = 0
-	    total_negative = 0
+	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	        try:
+	            with open(filepath, 'r') as f:
+	                summary = json.load(f)
 	
-	    def extract_timestamp_from_key(key):
-	        match = re.search(r'summary_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d+)\.json', key)
-	        return match.group(1) if match else ""
-	
-	    keys.sort(key=extract_timestamp_from_key)
-	
-	    for key in keys:
-	        data = load_json_from_s3(key)
-	
-	        current_overall_records = data.get('total_records_processed_overall', 0)
-	        if current_overall_records > max_total_records_processed_overall:
-	            max_total_records_processed_overall = current_overall_records
-	
-|3,0,3,1,50,0,1751464080,"import boto3","import json","import time","import re","from collections import Counter, defaultdict","","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'kafka-consumer-outputs/'","","s3 = boto3.client('s3')","","def list_json_objects(bucket, prefix):","    objects = []","    paginator = s3.get_paginator('list_objects_v2')","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):","        if 'Contents' in page:",>100
-|<"            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))","    return objects","","def load_json_from_s3(key):","    response = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(response['Body'].read().decode('utf-8'))","","def summarize_outputs():","    keys = list_json_objects(S3_BUCKET, S3_PREFIX)","    print(f\"Found {len(keys)} summary files\")","","    max_total_records_processed_overall = 0",>34
-|<"    weighted_sentiment_sum = 0.0","    total_records_for_averages = 0","    total_run_time_sec = 0.0","    word_counter = Counter()","    movie_sentiments = defaultdict(list)","    total_positive = 0","    total_neutral = 0","    total_negative = 0","","    def extract_timestamp_from_key(key):","        match = re.search(r'summary_(\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d+)\\.json', key)","        return match.group(1) if match else \"\"","",>47
-|<"    keys.sort(key=extract_timestamp_from_key)","","    for key in keys:","        data = load_json_from_s3(key)","","        current_overall_records = data.get('total_records_processed_overall', 0)","        if current_overall_records > max_total_records_processed_overall:","            max_total_records_processed_overall = current_overall_records",""
+|3,0,3,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
+|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
+|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
+|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
 "4	LINE	0
-	import boto3
+	import os
 	import json
-	import time
-	from collections import Counter, defaultdict
-	import re # Import regex for timestamp extraction
+	import glob
+	import boto3
+	import matplotlib.pyplot as plt
+	import numpy as np
+	from collections import Counter
+	from wordcloud import WordCloud
 	
+	# --- Config ---
+	SUMMARY_DIR = './graph_summaries'
+	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
 	S3_BUCKET = 'imdbreviews-scalable'
-	S3_PREFIX = 'kafka-consumer-outputs/'
+	S3_SUMMARY_PREFIX = 'summaries/'
 	
-	s3 = boto3.client('s3')
+	os.makedirs(SUMMARY_DIR, exist_ok=True)
 	
-	def list_json_objects(bucket, prefix):
-	    objects = []
+	# --- S3 download ---
+	def download_summaries_from_s3():
+	    s3 = boto3.client('s3')
 	    paginator = s3.get_paginator('list_objects_v2')
-	    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-	        if 'Contents' in page:
-	            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))
-	    return objects
+	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
+	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
+	        for obj in page.get('Contents', []):
+	            key = obj['Key']
+	            if key.endswith('.json'):
+	                filename = os.path.basename(key)
+	                local_path = os.path.join(SUMMARY_DIR, filename)
+	                s3.download_file(S3_BUCKET, key, local_path)
+	                print(f"Downloaded: {filename}")
 	
-	def load_json_from_s3(key):
-	    response = s3.get_object(Bucket=S3_BUCKET, Key=key)
-	    return json.loads(response['Body'].read().decode('utf-8'))
+	# --- Upload to S3 ---
+	def upload_to_s3(file):
+	    s3 = boto3.client('s3')
+	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
+	    s3.upload_file(file, S3_BUCKET, s3_path)
+	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
 	
-	def summarize_outputs():
-	    keys = list_json_objects(S3_BUCKET, S3_PREFIX)
-	    print(f"Found {len(keys)} summary files")
+	# --- Parse summaries ---
+	def parse_summary_files():
+	    grouped_data = {}
+	    sentiment_data = Counter()
+	    word_freq = Counter()
+	    movie_sentiments = {}
 	
-	    max_total_records_processed_overall = 0 # To store the ultimate total reviews
+	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	        try:
+	            with open(filepath, 'r') as f:
+	                summary = json.load(f)
 	
-	    total_sentiment = 0.0
-	    total_duration = 0.0
-	
-	    # These will now track weighted averages or sums
-	    weighted_sentiment_sum = 0.0
-	    total_records_for_averages = 0 # To track total records contributing to avg sentiment/spoiler
-	
-	    # For avg latency and throughput, we need to sum up individual batch durations and records
-	    total_records_for_avg_latency_throughput = 0
-	    total_duration_for_avg_latency_throughput = 0.0
-	
-	
-	    word_counter = Counter()
-	    movie_sentiments = defaultdict(list)
-	
-	    # To track the last seen overall records for correct total
-	    last_overall_records = 0
-	
-	    # Sort keys by timestamp to ensure we process in order and get the latest overall count
-	    # Assuming filenames are like summary_2025-06-28T17-02-36-350486.json
-	    def extract_timestamp_from_key(key):
-|3,0,4,1,50,0,1751463851,"import boto3","import json","import time","from collections import Counter, defaultdict","import re # Import regex for timestamp extraction","","S3_BUCKET = 'imdbreviews-scalable'","S3_PREFIX = 'kafka-consumer-outputs/'","","s3 = boto3.client('s3')","","def list_json_objects(bucket, prefix):","    objects = []","    paginator = s3.get_paginator('list_objects_v2')","    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):",>32
-|<"        if 'Contents' in page:","            objects.extend(obj['Key'] for obj in page['Contents'] if obj['Key'].endswith('.json'))","    return objects","","def load_json_from_s3(key):","    response = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(response['Body'].read().decode('utf-8'))","","def summarize_outputs():","    keys = list_json_objects(S3_BUCKET, S3_PREFIX)","    print(f\"Found {len(keys)} summary files\")","",>83
-|<"    max_total_records_processed_overall = 0 # To store the ultimate total reviews","","    total_sentiment = 0.0","    total_duration = 0.0","","    # These will now track weighted averages or sums","    weighted_sentiment_sum = 0.0","    total_records_for_averages = 0 # To track total records contributing to avg sentiment/spoiler","","    # For avg latency and throughput, we need to sum up individual batch durations and records","    total_records_for_avg_latency_throughput = 0",>53
-|<"    total_duration_for_avg_latency_throughput = 0.0","","","    word_counter = Counter()","    movie_sentiments = defaultdict(list)","","    # To track the last seen overall records for correct total","    last_overall_records = 0","","    # Sort keys by timestamp to ensure we process in order and get the latest overall count","    # Assuming filenames are like summary_2025-06-28T17-02-36-350486.json","    def extract_timestamp_from_key(key):"
+|3,0,4,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
+|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
+|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
+|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
 "5	LINE	0
-	        'avg_spoiler_percent': round(100 * weighted_spoiler_count_sum / total_records_for_averages, 2) if total_records_for_averages else None,
-|3,0,5,1,1,0,1751463430,"        'avg_spoiler_percent': round(100 * weighted_spoiler_count_sum / total_records_for_averages, 2) if total_records_for_averages else None,"
+	            time_val.append(total_time)
+|3,0,5,1,1,0,1751495579,"            time_val.append(total_time)"
 "6	LINE	0
-	            # No need to add to total_records_for_averages again, it's the same base count
-|3,0,6,1,1,0,1751463354,"            # No need to add to total_records_for_averages again, it's the same base count"
+	            latency.append(latency)
+|3,0,6,1,1,0,1751495578,"            latency.append(latency)"
 "7	LINE	0
-	            weighted_spoiler_count_sum += (spoiler_pct / 100) * batch_reviews # Convert percentage to a proportion of reviews
-|3,0,7,1,1,0,1751463352,"            weighted_spoiler_count_sum += (spoiler_pct / 100) * batch_reviews # Convert percentage to a proportion of reviews"
+	            throughput.append(throughput)
+|3,0,7,1,1,0,1751495578,"            throughput.append(throughput)"
 "8	LINE	0
-	        if spoiler_pct is not None and batch_reviews > 0:
-|3,0,8,1,1,0,1751463351,"        if spoiler_pct is not None and batch_reviews > 0:"
+	            
+|3,0,8,1,1,0,1751495577,"            "
 "9	LINE	0
-	        spoiler_pct = data.get('spoiler_percent_window')
-|3,0,9,1,1,0,1751463350,"        spoiler_pct = data.get('spoiler_percent_window')"
+	            total_time = next((v for k, v in data.items() if 'time' in k.lower() or 'duration' in k.lower()), 0)
+|3,0,9,1,1,0,1751495566,"            total_time = next((v for k, v in data.items() if 'time' in k.lower() or 'duration' in k.lower()), 0)"
 "-	CHAR	0
 	'
 |3,0,36,0,1,0,1751326969,"'"
 
 # File marks:
-'0  14  11  ~/.gitignore
-|4,48,14,11,1751486931,"~/.gitignore"
-'1  13  12  ~/.gitignore
-|4,49,13,12,1751486817,"~/.gitignore"
-'2  13  12  ~/.gitignore
-|4,50,13,12,1751486817,"~/.gitignore"
-'3  12  4  ~/.gitignore
-|4,51,12,4,1751486576,"~/.gitignore"
-'4  12  4  ~/.gitignore
-|4,52,12,4,1751486576,"~/.gitignore"
-'5  12  4  ~/.gitignore
-|4,53,12,4,1751486576,"~/.gitignore"
-'6  12  4  ~/.gitignore
-|4,54,12,4,1751486576,"~/.gitignore"
-'7  12  4  ~/.gitignore
-|4,55,12,4,1751486561,"~/.gitignore"
-'8  12  4  ~/.gitignore
-|4,56,12,4,1751486561,"~/.gitignore"
-'9  12  4  ~/.gitignore
-|4,57,12,4,1751486561,"~/.gitignore"
+'0  318  49  ~/visualization.py
+|4,48,318,49,1751497028,"~/visualization.py"
+'1  1  49  ~/visualization.py
+|4,49,1,49,1751496876,"~/visualization.py"
+'2  290  49  ~/visualization.py
+|4,50,290,49,1751496876,"~/visualization.py"
+'3  1  49  ~/visualization.py
+|4,51,1,49,1751496397,"~/visualization.py"
+'4  290  49  ~/visualization.py
+|4,52,290,49,1751496397,"~/visualization.py"
+'5  1  49  ~/visualization.py
+|4,53,1,49,1751496190,"~/visualization.py"
+'6  400  49  ~/visualization.py
+|4,54,400,49,1751496190,"~/visualization.py"
+'7  1  49  ~/visualization.py
+|4,55,1,49,1751496190,"~/visualization.py"
+'8  400  49  ~/visualization.py
+|4,56,400,49,1751496190,"~/visualization.py"
+'9  1  49  ~/visualization.py
+|4,57,1,49,1751496190,"~/visualization.py"
 
 # Jumplist (newest first):
--'  14  11  ~/.gitignore
-|4,39,14,11,1751486931,"~/.gitignore"
--'  13  12  ~/.gitignore
-|4,39,13,12,1751486924,"~/.gitignore"
--'  13  12  ~/.gitignore
-|4,39,13,12,1751486817,"~/.gitignore"
--'  12  4  ~/.gitignore
-|4,39,12,4,1751486811,"~/.gitignore"
--'  12  4  ~/.gitignore
-|4,39,12,4,1751486811,"~/.gitignore"
--'  12  4  ~/.gitignore
-|4,39,12,4,1751486576,"~/.gitignore"
--'  12  4  ~/.gitignore
-|4,39,12,4,1751486561,"~/.gitignore"
--'  11  19  ~/.gitignore
-|4,39,11,19,1751486529,"~/.gitignore"
--'  11  19  ~/.gitignore
-|4,39,11,19,1751486529,"~/.gitignore"
--'  11  19  ~/.gitignore
-|4,39,11,19,1751486529,"~/.gitignore"
--'  11  19  ~/.gitignore
-|4,39,11,19,1751486529,"~/.gitignore"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486479,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  1  0  ~/1
-|4,39,1,0,1751486472,"~/1"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  267  0  ~/imdb_consumer_kafka.py
-|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  318  49  ~/visualization.py
+|4,39,318,49,1751497028,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751497024,"~/visualization.py"
+-'  290  49  ~/visualization.py
+|4,39,290,49,1751496876,"~/visualization.py"
+-'  290  49  ~/visualization.py
+|4,39,290,49,1751496397,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751496391,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751496391,"~/visualization.py"
+-'  400  49  ~/visualization.py
+|4,39,400,49,1751496190,"~/visualization.py"
+-'  373  49  ~/visualization.py
+|4,39,373,49,1751496190,"~/visualization.py"
+-'  373  49  ~/visualization.py
+|4,39,373,49,1751496190,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751496184,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751496010,"~/visualization.py"
+-'  256  4  ~/visualization.py
+|4,39,256,4,1751495995,"~/visualization.py"
+-'  256  4  ~/visualization.py
+|4,39,256,4,1751495995,"~/visualization.py"
+-'  256  4  ~/visualization.py
+|4,39,256,4,1751495935,"~/visualization.py"
+-'  256  31  ~/visualization.py
+|4,39,256,31,1751495780,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751495775,"~/visualization.py"
+-'  1  0  ~/visualization.py
+|4,39,1,0,1751495775,"~/visualization.py"
+-'  76  0  ~/visualization.py
+|4,39,76,0,1751495603,"~/visualization.py"
+-'  76  0  ~/visualization.py
+|4,39,76,0,1751495603,"~/visualization.py"
+-'  76  0  ~/visualization.py
+|4,39,76,0,1751495603,"~/visualization.py"
+-'  76  0  ~/visualization.py
+|4,39,76,0,1751495603,"~/visualization.py"
+-'  73  0  ~/visualization.py
+|4,39,73,0,1751495423,"~/visualization.py"
+-'  73  0  ~/visualization.py
+|4,39,73,0,1751495423,"~/visualization.py"
+-'  73  0  ~/visualization.py
+|4,39,73,0,1751495423,"~/visualization.py"
+-'  73  0  ~/visualization.py
+|4,39,73,0,1751495423,"~/visualization.py"
+-'  81  0  ~/visualization.py
+|4,39,81,0,1751495406,"~/visualization.py"
+-'  81  0  ~/visualization.py
+|4,39,81,0,1751495406,"~/visualization.py"
+-'  81  0  ~/visualization.py
+|4,39,81,0,1751495406,"~/visualization.py"
+-'  81  0  ~/visualization.py
+|4,39,81,0,1751495406,"~/visualization.py"
+-'  72  12  ~/visualization.py
+|4,39,72,12,1751495310,"~/visualization.py"
+-'  72  12  ~/visualization.py
+|4,39,72,12,1751495310,"~/visualization.py"
+-'  72  12  ~/visualization.py
+|4,39,72,12,1751495310,"~/visualization.py"
+-'  72  12  ~/visualization.py
+|4,39,72,12,1751495310,"~/visualization.py"
+-'  73  12  ~/visualization.py
+|4,39,73,12,1751495310,"~/visualization.py"
+-'  73  12  ~/visualization.py
+|4,39,73,12,1751495309,"~/visualization.py"
+-'  76  121  ~/visualization.py
+|4,39,76,121,1751495220,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495101,"~/visualization.py"
+-'  62  0  ~/visualization.py
+|4,39,62,0,1751495039,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  51  0  ~/visualization.py
+|4,39,51,0,1751494971,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  52  0  ~/visualization.py
+|4,39,52,0,1751494970,"~/visualization.py"
+-'  51  45  ~/visualization.py
+|4,39,51,45,1751494950,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  57  45  ~/visualization.py
+|4,39,57,45,1751494904,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  60  15  ~/visualization.py
+|4,39,60,15,1751494884,"~/visualization.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  112  27  ~/imdb_summary.py
+|4,39,112,27,1751494850,"~/imdb_summary.py"
 
 # History of marks within files (newest to oldest):
+
+> ~/visualization.py
+	*	1751497026	0
+	"	318	49
+	^	318	50
+	.	318	49
+	+	1	9
+	+	1	7
+	+	1	16
+	+	1	7
+	+	1	0
+	+	1	59
+	+	1	7
+	+	1	0
+	+	1	9
+	+	1	39
+	+	1	9
+	+	1	11
+	+	1	9
+	+	1	92
+	+	1	9
+	+	1	46
+	+	1	0
+	+	1	21
+	+	1	0
+	+	1	21
+	+	1	15
+	+	1	11
+	+	1	16
+	+	1	45
+	+	1	91
+	+	1	21
+	+	1	11
+	+	1	7
+	+	1	11
+	+	1	15
+	+	1	11
+	+	1	110
+	+	1	122
+	+	1	11
+	+	1	12
+	+	1	19
+	+	1	18
+	+	1	22
+	+	1	12
+	+	1	0
+	+	1	119
+	+	1	9
+	+	318	49
+
+> ~/imdb_summary.py
+	*	1751494849	0
+	"	112	27
+	^	112	28
+	.	112	28
+	+	1	23
+	+	1	67
+	+	1	66
+	+	1	0
+	+	1	49
+	+	1	67
+	+	1	0
+	+	1	92
+	+	1	12
+	+	1	23
+	+	1	13
+	+	1	12
+	+	1	23
+	+	1	16
+	+	1	18
+	+	1	10
+	+	1	0
+	+	1	12
+	+	1	18
+	+	1	12
+	+	1	23
+	+	1	12
+	+	1	23
+	+	1	12
+	+	1	23
+	+	1	12
+	+	146	23
+	+	112	28
 
 > ~/.gitignore
 	*	1751486929	0
@@ -672,33 +771,6 @@
 	+	5	9
 	+	4	10
 	+	11	30
-
-> ~/imdb_summary.py
-	*	1751464625	0
-	"	106	0
-	^	106	0
-	.	105	23
-	+	1	23
-	+	1	67
-	+	1	66
-	+	1	0
-	+	1	49
-	+	1	67
-	+	1	0
-	+	1	92
-	+	1	12
-	+	1	23
-	+	1	13
-	+	1	12
-	+	1	23
-	+	1	16
-	+	1	18
-	+	1	10
-	+	1	0
-	+	1	12
-	+	1	18
-	+	1	12
-	+	105	23
 
 > ~/producer2.py
 	*	1751456949	0
@@ -1087,23 +1159,6 @@
 	+	1	12
 	+	132	63
 	+	11	39
-
-> ~/visualization.py
-	*	1751226918	0
-	"	33	0
-	^	11	34
-	.	11	34
-	+	1	9
-	+	1	7
-	+	1	16
-	+	1	7
-	+	1	0
-	+	1	59
-	+	1	7
-	+	1	0
-	+	1	9
-	+	91	39
-	+	11	34
 
 > ~/mapreduce_se
 	*	1751046366	0

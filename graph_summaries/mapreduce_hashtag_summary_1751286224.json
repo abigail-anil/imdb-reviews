@@ -1,0 +1,10 @@
+{
+  "method": "Parallel Hashtag Analysis",
+  "total_files_processed": 1,
+  "total_reviews_processed": 100000,
+  "top_hashtags": [],
+  "total_time_sec": 1.93,
+  "throughput_reviews_per_sec": 51813.47,
+  "latency_sec_per_review": 0.0,
+  "timestamp_utc": "2025-06-30T12-23-44"
+}

@@ -1,0 +1,83 @@
+{
+  "method": "Streaming(Kafka)",
+  "total_reviews": 2122505,
+  "total_run_time_sec": 1356.18,
+  "avg_sentiment": 0.7726,
+  "avg_throughput": 542.39,
+  "avg_latency_sec": 0.0018,
+  "positive_count_total": 1222347,
+  "neutral_count_total": 458157,
+  "negative_count_total": 442001,
+  "top_10_words": [
+    [
+      "movie",
+      28062143
+    ],
+    [
+      "film",
+      18833845
+    ],
+    [
+      "one",
+      15173807
+    ],
+    [
+      "so",
+      13978222
+    ],
+    [
+      "all",
+      13791464
+    ],
+    [
+      "like",
+      47
+    ],
+    [
+      "when",
+      44
+    ]
+  ],
+  "top_10_movies_sentiment": [
+    [
+      "Scam 1992: The Harshad Mehta Story (2020)",
+      2.167
+    ],
+    [
+      "Booo: Sabki Phategi (2019\u2013 )",
+      2.026
+    ],
+    [
+      "Mrs. Serial Killer (2020)",
+      1.996
+    ],
+    [
+      "Asur: Welcome to Your Dark Side (2020\u2013 )",
+      1.958
+    ],
+    [
+      "Gunjan Saxena: The Kargil Girl (2020)",
+      1.82
+    ],
+    [
+      "The Chosen (2017\u2013 )",
+      1.809
+    ],
+    [
+      "Bohemian Rhapsody (2018)",
+      1.673
+    ],
+    [
+      "Dark (2017\u20132020)",
+      1.631
+    ],
+    [
+      "After Life (2019\u2013 )",
+      1.563
+    ],
+    [
+      "The Chronicles of Riddick (2004)",
+      1.558
+    ]
+  ]
+}

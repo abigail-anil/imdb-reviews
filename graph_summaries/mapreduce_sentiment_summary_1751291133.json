@@ -1,0 +1,11 @@
+{
+  "method": "Parallel Sentiment Analysis",
+  "total_files_processed": 1,
+  "total_reviews_processed": 99985,
+  "total_pipeline_time_sec": 210.38,
+  "average_sentiment": 0.5056,
+  "sentiment_analysis_time_sec": 206.76,
+  "throughput_reviews_per_sec": 475.26,
+  "latency_sec_per_review": 0.0021,
+  "timestamp_utc": "2025-06-30T13-45-33"
+}
