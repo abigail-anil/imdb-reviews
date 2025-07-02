@@ -15,7 +15,7 @@
 
 # Command Line History (newest to oldest):
 :wq!
-|2,0,1751486817,,"wq!"
+|2,0,1751486931,,"wq!"
 :q
 |2,0,1751486576,,"q"
 :q!
@@ -305,30 +305,36 @@
 |3,0,36,0,1,0,1751326969,"'"
 
 # File marks:
-'0  13  12  ~/.gitignore
-|4,48,13,12,1751486817,"~/.gitignore"
-'1  12  4  ~/.gitignore
-|4,49,12,4,1751486576,"~/.gitignore"
-'2  12  4  ~/.gitignore
-|4,50,12,4,1751486576,"~/.gitignore"
+'0  14  11  ~/.gitignore
+|4,48,14,11,1751486931,"~/.gitignore"
+'1  13  12  ~/.gitignore
+|4,49,13,12,1751486817,"~/.gitignore"
+'2  13  12  ~/.gitignore
+|4,50,13,12,1751486817,"~/.gitignore"
 '3  12  4  ~/.gitignore
-|4,51,12,4,1751486561,"~/.gitignore"
+|4,51,12,4,1751486576,"~/.gitignore"
 '4  12  4  ~/.gitignore
-|4,52,12,4,1751486561,"~/.gitignore"
-'5  1  0  ~/1
-|4,53,1,0,1751486479,"~/1"
-'6  1  0  ~/1
-|4,54,1,0,1751486472,"~/1"
-'7  267  0  ~/imdb_consumer_kafka.py
-|4,55,267,0,1751486446,"~/imdb_consumer_kafka.py"
-'8  12  0  ~/mapreduce_hashtag.py
-|4,56,12,0,1751486219,"~/mapreduce_hashtag.py"
-'9  1  0  ~/mapreduce_hashtag
-|4,57,1,0,1751486208,"~/mapreduce_hashtag"
+|4,52,12,4,1751486576,"~/.gitignore"
+'5  12  4  ~/.gitignore
+|4,53,12,4,1751486576,"~/.gitignore"
+'6  12  4  ~/.gitignore
+|4,54,12,4,1751486576,"~/.gitignore"
+'7  12  4  ~/.gitignore
+|4,55,12,4,1751486561,"~/.gitignore"
+'8  12  4  ~/.gitignore
+|4,56,12,4,1751486561,"~/.gitignore"
+'9  12  4  ~/.gitignore
+|4,57,12,4,1751486561,"~/.gitignore"
 
 # Jumplist (newest first):
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751486931,"~/.gitignore"
+-'  13  12  ~/.gitignore
+|4,39,13,12,1751486924,"~/.gitignore"
 -'  13  12  ~/.gitignore
 |4,39,13,12,1751486817,"~/.gitignore"
+-'  12  4  ~/.gitignore
+|4,39,12,4,1751486811,"~/.gitignore"
 -'  12  4  ~/.gitignore
 |4,39,12,4,1751486811,"~/.gitignore"
 -'  12  4  ~/.gitignore
@@ -341,6 +347,8 @@
 |4,39,11,19,1751486529,"~/.gitignore"
 -'  11  19  ~/.gitignore
 |4,39,11,19,1751486529,"~/.gitignore"
+-'  11  19  ~/.gitignore
+|4,39,11,19,1751486529,"~/.gitignore"
 -'  1  0  ~/1
 |4,39,1,0,1751486479,"~/1"
 -'  1  0  ~/1
@@ -357,6 +365,38 @@
 |4,39,1,0,1751486479,"~/1"
 -'  1  0  ~/1
 |4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486479,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
+-'  1  0  ~/1
+|4,39,1,0,1751486472,"~/1"
 -'  1  0  ~/1
 |4,39,1,0,1751486472,"~/1"
 -'  1  0  ~/1
@@ -437,104 +477,64 @@
 |4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
 -'  267  0  ~/imdb_consumer_kafka.py
 |4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  1  0  ~/imdb_consumer_kafka.py
-|4,39,1,0,1751486344,"~/imdb_consumer_kafka.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
--'  12  0  ~/mapreduce_hashtag.py
-|4,39,12,0,1751486219,"~/mapreduce_hashtag.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
+-'  267  0  ~/imdb_consumer_kafka.py
+|4,39,267,0,1751486446,"~/imdb_consumer_kafka.py"
 
 # History of marks within files (newest to oldest):
 
 > ~/.gitignore
-	*	1751486816	0
-	"	13	12
-	^	13	13
-	.	13	12
+	*	1751486929	0
+	"	14	11
+	^	14	12
+	.	14	11
 	+	6	41
 	+	4	0
 	+	7	4
@@ -544,7 +544,8 @@
 	+	10	7
 	+	11	20
 	+	12	5
-	+	13	12
+	+	13	13
+	+	14	11
 
 > ~/1
 	*	1751486477	0
