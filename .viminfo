@@ -15,11 +15,11 @@
 
 # Command Line History (newest to oldest):
 :wq!
-|2,0,1751497028,,"wq!"
+|2,0,1751551846,,"wq!"
+:q!
+|2,0,1751551170,,"q!"
 :q
 |2,0,1751496876,,"q"
-:q!
-|2,0,1751495309,,"q!"
 :wq1
 |2,0,1751386587,,"wq1"
 :950
@@ -136,415 +136,522 @@
 # Debug Line History (newest to oldest):
 
 # Registers:
+""1	LINE	0
+	import streamlit as st
+	import pandas as pd
+	import plotly.express as px
+	from utils import load_summary_dataframe
+	from streamlit_autorefresh import st_autorefresh 
+	
+	# Set page config
+	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
+	st.title(" Real-Time IMDB Sentiment Dashboard")
+	
+	#  Auto-refresh every 10 seconds
+	st_autorefresh(interval=10000, key="auto-refresh")  # interval is in milliseconds
+	
+	# Load data
+	df = load_summary_dataframe()
+	
+	if df.empty:
+	    st.warning("No data available yet.")
+	else:
+	    # Sliding window: last 5 minutes
+	    latest_time = df["timestamp_utc"].max()
+	    recent_df = df[df["timestamp_utc"] > latest_time - pd.Timedelta(minutes=5)]
+	
+	    #  Average Sentiment Over Time
+	    fig_sentiment = px.line(recent_df, x="timestamp_utc", y="avg_sentiment_window", title="Average Sentiment Over Time")
+	    st.plotly_chart(fig_sentiment, use_container_width=True)
+	
+	    #  Throughput Over Time
+	    fig_throughput = px.line(recent_df, x="timestamp_utc", y="throughput_rec_per_sec", title="Throughput (records/sec)")
+	    st.plotly_chart(fig_throughput, use_container_width=True)
+	
+	    #  Sentiment Count Totals
+	    latest_row = df.iloc[-1]
+	    sentiment_counts = {
+	        "Positive": latest_row["positive_count_total"],
+	        "Neutral": latest_row["neutral_count_total"],
+	        "Negative": latest_row["negative_count_total"]
+	    }
+	    st.subheader("Sentiment Count Totals")
+	    st.bar_chart(sentiment_counts)
+	
+	    #  Top 5 Words
+	    try:
+	        top_words = latest_row["top_words_window"]
+	        words_df = pd.DataFrame(top_words, columns=["Word", "Count"])
+	        fig_words = px.bar(words_df, x="Word", y="Count", title="Top 5 Words in Sliding Window")
+	        st.plotly_chart(fig_words, use_container_width=True)
+	    except:
+	        st.warning("Top words not available.")
+	
+|3,1,1,1,50,0,1751551772,"import streamlit as st","import pandas as pd","import plotly.express as px","from utils import load_summary_dataframe","from streamlit_autorefresh import st_autorefresh ","","# Set page config","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","#  Auto-refresh every 10 seconds",>85
+|<"st_autorefresh(interval=10000, key=\"auto-refresh\")  # interval is in milliseconds","","# Load data","df = load_summary_dataframe()","","if df.empty:","    st.warning(\"No data available yet.\")","else:","    # Sliding window: last 5 minutes","    latest_time = df[\"timestamp_utc\"].max()","    recent_df = df[df[\"timestamp_utc\"] > latest_time - pd.Timedelta(minutes=5)]","","    #  Average Sentiment Over Time",>128
+|<"    fig_sentiment = px.line(recent_df, x=\"timestamp_utc\", y=\"avg_sentiment_window\", title=\"Average Sentiment Over Time\")","    st.plotly_chart(fig_sentiment, use_container_width=True)","","    #  Throughput Over Time","    fig_throughput = px.line(recent_df, x=\"timestamp_utc\", y=\"throughput_rec_per_sec\", title=\"Throughput (records/sec)\")","    st.plotly_chart(fig_throughput, use_container_width=True)","","    #  Sentiment Count Totals","    latest_row = df.iloc[-1]",>26
+|<"    sentiment_counts = {","        \"Positive\": latest_row[\"positive_count_total\"],","        \"Neutral\": latest_row[\"neutral_count_total\"],","        \"Negative\": latest_row[\"negative_count_total\"]","    }","    st.subheader(\"Sentiment Count Totals\")","    st.bar_chart(sentiment_counts)","","    #  Top 5 Words","    try:","        top_words = latest_row[\"top_words_window\"]","        words_df = pd.DataFrame(top_words, columns=[\"Word\", \"Count\"])",>104
+|<"        fig_words = px.bar(words_df, x=\"Word\", y=\"Count\", title=\"Top 5 Words in Sliding Window\")","        st.plotly_chart(fig_words, use_container_width=True)","    except:","        st.warning(\"Top words not available.\")",""
 "2	LINE	0
-	import os
-	import json
-	import glob
-	import boto3
-	import matplotlib.pyplot as plt
-	import numpy as np
-	from collections import Counter
-	from wordcloud import WordCloud
+	import streamlit as st
+	import pandas as pd
+	import plotly.express as px
+	import time
+	from utils import load_summary_dataframe
 	
-	# --- Config ---
-	SUMMARY_DIR = './graph_summaries'
-	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
-	S3_BUCKET = 'imdbreviews-scalable'
-	S3_SUMMARY_PREFIX = 'summaries/'
+	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
+	st.title(" Real-Time IMDB Sentiment Dashboard")
 	
-	os.makedirs(SUMMARY_DIR, exist_ok=True)
+	REFRESH_INTERVAL = 5  # seconds
+	placeholder = st.empty()
 	
-	# --- S3 download ---
-	def download_summaries_from_s3():
-	    s3 = boto3.client('s3')
-	    paginator = s3.get_paginator('list_objects_v2')
-	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
-	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
-	        for obj in page.get('Contents', []):
-	            key = obj['Key']
-	            if key.endswith('.json'):
-	                filename = os.path.basename(key)
-	                local_path = os.path.join(SUMMARY_DIR, filename)
-	                s3.download_file(S3_BUCKET, key, local_path)
-	                print(f"Downloaded: {filename}")
+	with placeholder.container():
+	    df = load_summary_dataframe()
 	
-	# --- Upload to S3 ---
-	def upload_to_s3(file):
-	    s3 = boto3.client('s3')
-	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
-	    s3.upload_file(file, S3_BUCKET, s3_path)
-	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
+	    if df.empty:
+	        st.warning("No data available yet.")
+	    else:
+	        # Sliding window: last 5 minutes
+	        latest_time = df["timestamp_utc"].max()
+	        recent_df = df[df["timestamp_utc"] > latest_time - pd.Timedelta(minutes=5)]
 	
-	# --- Parse summaries ---
-	def parse_summary_files():
-	    grouped_data = {}
-	    sentiment_data = Counter()
-	    word_freq = Counter()
-	    movie_sentiments = {}
+	        #  Average Sentiment Over Time
+	        fig_sentiment = px.line(recent_df, x="timestamp_utc", y="avg_sentiment_window", title="Average Sentiment Over Time")
+	        st.plotly_chart(fig_sentiment, use_container_width=True)
 	
-	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
+	        #  Throughput Over Time
+	        fig_throughput = px.line(recent_df, x="timestamp_utc", y="throughput_rec_per_sec", title="Throughput (records/sec)")
+	        st.plotly_chart(fig_throughput, use_container_width=True)
+	
+	        #  Sentiment Counts (latest)
+	        latest_row = df.iloc[-1]
+	        sentiment_counts = {
+	            "Positive": latest_row["positive_count_total"],
+	            "Neutral": latest_row["neutral_count_total"],
+	            "Negative": latest_row["negative_count_total"]
+	        }
+	        st.subheader("Sentiment Count Totals")
+	        st.bar_chart(sentiment_counts)
+	
+	        #  Top 5 Words
 	        try:
-	            with open(filepath, 'r') as f:
-	                summary = json.load(f)
+	            top_words = latest_row["top_words_window"]
+	            words_df = pd.DataFrame(top_words, columns=["Word", "Count"])
+	            fig_words = px.bar(words_df, x="Word", y="Count", title="Top 5 Words in Sliding Window")
+	            st.plotly_chart(fig_words, use_container_width=True)
+	        except:
+	            st.warning("Top words not available.")
 	
-|3,0,2,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
-|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
-|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
-|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
+	        #  Top Movies & Sentiment
+|3,0,2,1,50,0,1751551231,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","from utils import load_summary_dataframe","","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","REFRESH_INTERVAL = 5  # seconds","placeholder = st.empty()","","with placeholder.container():","    df = load_summary_dataframe()","","    if df.empty:",>48
+|<"        st.warning(\"No data available yet.\")","    else:","        # Sliding window: last 5 minutes","        latest_time = df[\"timestamp_utc\"].max()","        recent_df = df[df[\"timestamp_utc\"] > latest_time - pd.Timedelta(minutes=5)]","","        #  Average Sentiment Over Time","        fig_sentiment = px.line(recent_df, x=\"timestamp_utc\", y=\"avg_sentiment_window\", title=\"Average Sentiment Over Time\")","        st.plotly_chart(fig_sentiment, use_container_width=True)","",>33
+|<"        #  Throughput Over Time","        fig_throughput = px.line(recent_df, x=\"timestamp_utc\", y=\"throughput_rec_per_sec\", title=\"Throughput (records/sec)\")","        st.plotly_chart(fig_throughput, use_container_width=True)","","        #  Sentiment Counts (latest)","        latest_row = df.iloc[-1]","        sentiment_counts = {","            \"Positive\": latest_row[\"positive_count_total\"],","            \"Neutral\": latest_row[\"neutral_count_total\"],",>64
+|<"            \"Negative\": latest_row[\"negative_count_total\"]","        }","        st.subheader(\"Sentiment Count Totals\")","        st.bar_chart(sentiment_counts)","","        #  Top 5 Words","        try:","            top_words = latest_row[\"top_words_window\"]","            words_df = pd.DataFrame(top_words, columns=[\"Word\", \"Count\"])","            fig_words = px.bar(words_df, x=\"Word\", y=\"Count\", title=\"Top 5 Words in Sliding Window\")",>66
+|<"            st.plotly_chart(fig_words, use_container_width=True)","        except:","            st.warning(\"Top words not available.\")","","        #  Top Movies & Sentiment"
 "3	LINE	0
-	import os
-	import json
-	import glob
-	import boto3
-	import matplotlib.pyplot as plt
-	import numpy as np
-	from collections import Counter
-	from wordcloud import WordCloud
-	
-	# --- Config ---
-	SUMMARY_DIR = './graph_summaries'
-	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
-	S3_BUCKET = 'imdbreviews-scalable'
-	S3_SUMMARY_PREFIX = 'summaries/'
-	
-	os.makedirs(SUMMARY_DIR, exist_ok=True)
-	
-	# --- S3 download ---
-	def download_summaries_from_s3():
-	    s3 = boto3.client('s3')
-	    paginator = s3.get_paginator('list_objects_v2')
-	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
-	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
-	        for obj in page.get('Contents', []):
-	            key = obj['Key']
-	            if key.endswith('.json'):
-	                filename = os.path.basename(key)
-	                local_path = os.path.join(SUMMARY_DIR, filename)
-	                s3.download_file(S3_BUCKET, key, local_path)
-	                print(f"Downloaded: {filename}")
-	
-	# --- Upload to S3 ---
-	def upload_to_s3(file):
-	    s3 = boto3.client('s3')
-	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
-	    s3.upload_file(file, S3_BUCKET, s3_path)
-	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
-	
-	# --- Parse summaries ---
-	def parse_summary_files():
-	    grouped_data = {}
-	    sentiment_data = Counter()
-	    word_freq = Counter()
-	    movie_sentiments = {}
-	
-	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
-	        try:
-	            with open(filepath, 'r') as f:
-	                summary = json.load(f)
-	
-|3,0,3,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
-|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
-|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
-|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
+	#  Refresh every 5 seconds
+|3,0,3,1,1,0,1751551154,"#  Refresh every 5 seconds"
 "4	LINE	0
-	import os
-	import json
-	import glob
-	import boto3
-	import matplotlib.pyplot as plt
-	import numpy as np
-	from collections import Counter
-	from wordcloud import WordCloud
-	
-	# --- Config ---
-	SUMMARY_DIR = './graph_summaries'
-	GRAPH_OUTPUT_PREFIX = 'graph_outputs'
-	S3_BUCKET = 'imdbreviews-scalable'
-	S3_SUMMARY_PREFIX = 'summaries/'
-	
-	os.makedirs(SUMMARY_DIR, exist_ok=True)
-	
-	# --- S3 download ---
-	def download_summaries_from_s3():
-	    s3 = boto3.client('s3')
-	    paginator = s3.get_paginator('list_objects_v2')
-	    print(f"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}")
-	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):
-	        for obj in page.get('Contents', []):
-	            key = obj['Key']
-	            if key.endswith('.json'):
-	                filename = os.path.basename(key)
-	                local_path = os.path.join(SUMMARY_DIR, filename)
-	                s3.download_file(S3_BUCKET, key, local_path)
-	                print(f"Downloaded: {filename}")
-	
-	# --- Upload to S3 ---
-	def upload_to_s3(file):
-	    s3 = boto3.client('s3')
-	    s3_path = f"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}"
-	    s3.upload_file(file, S3_BUCKET, s3_path)
-	    print(f"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}")
-	
-	# --- Parse summaries ---
-	def parse_summary_files():
-	    grouped_data = {}
-	    sentiment_data = Counter()
-	    word_freq = Counter()
-	    movie_sentiments = {}
-	
-	    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):
-	        try:
-	            with open(filepath, 'r') as f:
-	                summary = json.load(f)
-	
-|3,0,4,1,50,0,1751495775,"import os","import json","import glob","import boto3","import matplotlib.pyplot as plt","import numpy as np","from collections import Counter","from wordcloud import WordCloud","","# --- Config ---","SUMMARY_DIR = './graph_summaries'","GRAPH_OUTPUT_PREFIX = 'graph_outputs'","S3_BUCKET = 'imdbreviews-scalable'","S3_SUMMARY_PREFIX = 'summaries/'","","os.makedirs(SUMMARY_DIR, exist_ok=True)","","# --- S3 download ---",>35
-|<"def download_summaries_from_s3():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator('list_objects_v2')","    print(f\"Downloading summary files from s3://{S3_BUCKET}/{S3_SUMMARY_PREFIX}\")","    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_SUMMARY_PREFIX):","        for obj in page.get('Contents', []):","            key = obj['Key']","            if key.endswith('.json'):","                filename = os.path.basename(key)",>66
-|<"                local_path = os.path.join(SUMMARY_DIR, filename)","                s3.download_file(S3_BUCKET, key, local_path)","                print(f\"Downloaded: {filename}\")","","# --- Upload to S3 ---","def upload_to_s3(file):","    s3 = boto3.client('s3')","    s3_path = f\"{GRAPH_OUTPUT_PREFIX}/{os.path.basename(file)}\"","    s3.upload_file(file, S3_BUCKET, s3_path)","    print(f\"Uploaded to S3: s3://{S3_BUCKET}/{s3_path}\")","","# --- Parse summaries ---",>28
-|<"def parse_summary_files():","    grouped_data = {}","    sentiment_data = Counter()","    word_freq = Counter()","    movie_sentiments = {}","","    for filepath in sorted(glob.glob(os.path.join(SUMMARY_DIR, '*.json'))):","        try:","            with open(filepath, 'r') as f:","                summary = json.load(f)",""
+	time.sleep(REFRESH_INTERVAL)
+|3,0,4,1,1,0,1751551153,"time.sleep(REFRESH_INTERVAL)"
 "5	LINE	0
-	            time_val.append(total_time)
-|3,0,5,1,1,0,1751495579,"            time_val.append(total_time)"
+	st_autorefresh()
+|3,0,5,1,1,0,1751551152,"st_autorefresh()"
 "6	LINE	0
-	            latency.append(latency)
-|3,0,6,1,1,0,1751495578,"            latency.append(latency)"
+	st.rerun()
+|3,0,6,1,1,0,1751550993,"st.rerun()"
 "7	LINE	0
-	            throughput.append(throughput)
-|3,0,7,1,1,0,1751495578,"            throughput.append(throughput)"
+	st.experimental_rerun()
+|3,0,7,1,1,0,1751550714,"st.experimental_rerun()"
 "8	LINE	0
-	            
-|3,0,8,1,1,0,1751495577,"            "
+	import streamlit as st
+	import pandas as pd
+	import plotly.express as px
+	import time
+	import boto3
+	import json
+	from datetime import datetime
+	
+	# --- AWS S3 Config ---
+	S3_BUCKET = "imdbreviews-scalable"
+	S3_PREFIX = "kafka-consumer-outputs/"
+	
+	# --- Helper functions ---
+	def list_summary_keys():
+	    s3 = boto3.client('s3')
+	    paginator = s3.get_paginator("list_objects_v2")
+	    keys = []
+	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
+	        for obj in page.get('Contents', []):
+	            if obj['Key'].endswith('.json'):
+	                keys.append(obj['Key'])
+	    return sorted(keys)
+	
+	def read_summary_from_s3(key):
+	    s3 = boto3.client('s3')
+	    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+	    return json.loads(obj['Body'].read())
+	
+	def load_summary_dataframe():
+	    keys = list_summary_keys()
+	    summaries = [read_summary_from_s3(k) for k in keys]
+	    df = pd.DataFrame(summaries)
+	    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
+	    df.sort_values("timestamp_utc", inplace=True)
+	    return df
+	
+	# --- Streamlit Dashboard ---
+	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
+	st.title(" Real-Time IMDB Sentiment Dashboard")
+	
+	# Auto-refresh every 5 seconds
+	st.experimental_data_editor({ ["Refreshing every 5 seconds..."]}, use_container_width=True)
+	st_autorefresh = st.experimental_rerun  # You can also use st_autorefresh() if using Streamlit >= 1.18
+	
+	df = load_summary_dataframe()
+	
+	if df.empty:
+	    st.warning("No data available yet.")
+	else:
+	    # Sliding window: last 5 minutes
+|3,0,8,1,50,0,1751548245,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","import boto3","import json","from datetime import datetime","","# --- AWS S3 Config ---","S3_BUCKET = \"imdbreviews-scalable\"","S3_PREFIX = \"kafka-consumer-outputs/\"","","# --- Helper functions ---","def list_summary_keys():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator(\"list_objects_v2\")","    keys = []",>73
+|<"    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return sorted(keys)","","def read_summary_from_s3(key):","    s3 = boto3.client('s3')","    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(obj['Body'].read())","","def load_summary_dataframe():","    keys = list_summary_keys()",>57
+|<"    summaries = [read_summary_from_s3(k) for k in keys]","    df = pd.DataFrame(summaries)","    df[\"timestamp_utc\"] = pd.to_datetime(df[\"timestamp_utc\"])","    df.sort_values(\"timestamp_utc\", inplace=True)","    return df","","# --- Streamlit Dashboard ---","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","# Auto-refresh every 5 seconds",>95
+|<"st.experimental_data_editor({ [\"Refreshing every 5 seconds...\"]}, use_container_width=True)","st_autorefresh = st.experimental_rerun  # You can also use st_autorefresh() if using Streamlit >= 1.18","","df = load_summary_dataframe()","","if df.empty:","    st.warning(\"No data available yet.\")","else:","    # Sliding window: last 5 minutes"
 "9	LINE	0
-	            total_time = next((v for k, v in data.items() if 'time' in k.lower() or 'duration' in k.lower()), 0)
-|3,0,9,1,1,0,1751495566,"            total_time = next((v for k, v in data.items() if 'time' in k.lower() or 'duration' in k.lower()), 0)"
+	import streamlit as st
+	import pandas as pd
+	import plotly.express as px
+	import time
+	import boto3
+	import json
+	from datetime import datetime
+	
+	# --- AWS S3 Config ---
+	S3_BUCKET = "imdbreviews-scalable"
+	S3_PREFIX = "kafka-consumer-outputs/"
+	
+	# --- Helper functions ---
+	def list_summary_keys():
+	    s3 = boto3.client('s3')
+	    paginator = s3.get_paginator("list_objects_v2")
+	    keys = []
+	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
+	        for obj in page.get('Contents', []):
+	            if obj['Key'].endswith('.json'):
+	                keys.append(obj['Key'])
+	    return sorted(keys)
+	
+	def read_summary_from_s3(key):
+	    s3 = boto3.client('s3')
+	    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+	    return json.loads(obj['Body'].read())
+	
+	def load_summary_dataframe():
+	    keys = list_summary_keys()
+	    summaries = [read_summary_from_s3(k) for k in keys]
+	    df = pd.DataFrame(summaries)
+	    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
+	    df.sort_values("timestamp_utc", inplace=True)
+	    return df
+	
+	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
+	st.title(" Real-Time IMDB Sentiment Dashboard")
+	
+	REFRESH_INTERVAL = 5  # seconds
+	placeholder = st.empty()
+	
+	while True:
+	    with placeholder.container():
+	        df = load_summary_dataframe()
+	
+	        if df.empty:
+	            st.warning("No data available yet.")
+	            time.sleep(REFRESH_INTERVAL)
+	            continue
+|3,0,9,1,50,0,1751548080,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","import boto3","import json","from datetime import datetime","","# --- AWS S3 Config ---","S3_BUCKET = \"imdbreviews-scalable\"","S3_PREFIX = \"kafka-consumer-outputs/\"","","# --- Helper functions ---","def list_summary_keys():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator(\"list_objects_v2\")","    keys = []",>73
+|<"    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return sorted(keys)","","def read_summary_from_s3(key):","    s3 = boto3.client('s3')","    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(obj['Body'].read())","","def load_summary_dataframe():","    keys = list_summary_keys()",>57
+|<"    summaries = [read_summary_from_s3(k) for k in keys]","    df = pd.DataFrame(summaries)","    df[\"timestamp_utc\"] = pd.to_datetime(df[\"timestamp_utc\"])","    df.sort_values(\"timestamp_utc\", inplace=True)","    return df","","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","REFRESH_INTERVAL = 5  # seconds","placeholder = st.empty()","","while True:","    with placeholder.container():",>39
+|<"        df = load_summary_dataframe()","","        if df.empty:","            st.warning(\"No data available yet.\")","            time.sleep(REFRESH_INTERVAL)","            continue"
 "-	CHAR	0
 	'
 |3,0,36,0,1,0,1751326969,"'"
 
 # File marks:
-'0  318  49  ~/visualization.py
-|4,48,318,49,1751497028,"~/visualization.py"
-'1  1  49  ~/visualization.py
-|4,49,1,49,1751496876,"~/visualization.py"
-'2  290  49  ~/visualization.py
-|4,50,290,49,1751496876,"~/visualization.py"
-'3  1  49  ~/visualization.py
-|4,51,1,49,1751496397,"~/visualization.py"
-'4  290  49  ~/visualization.py
-|4,52,290,49,1751496397,"~/visualization.py"
-'5  1  49  ~/visualization.py
-|4,53,1,49,1751496190,"~/visualization.py"
-'6  400  49  ~/visualization.py
-|4,54,400,49,1751496190,"~/visualization.py"
-'7  1  49  ~/visualization.py
-|4,55,1,49,1751496190,"~/visualization.py"
-'8  400  49  ~/visualization.py
-|4,56,400,49,1751496190,"~/visualization.py"
-'9  1  49  ~/visualization.py
-|4,57,1,49,1751496190,"~/visualization.py"
+'0  10  9  ~/app.py
+|4,48,10,9,1751551846,"~/app.py"
+'1  1  23  ~/app.py
+|4,49,1,23,1751551411,"~/app.py"
+'2  11  23  ~/app.py
+|4,50,11,23,1751551411,"~/app.py"
+'3  1  21  ~/app.py
+|4,51,1,21,1751551274,"~/app.py"
+'4  1  21  ~/app.py
+|4,52,1,21,1751551274,"~/app.py"
+'5  1  21  ~/app.py
+|4,53,1,21,1751551274,"~/app.py"
+'6  1  21  ~/app.py
+|4,54,1,21,1751551274,"~/app.py"
+'7  1  0  ~/app.py
+|4,55,1,0,1751551170,"~/app.py"
+'8  1  0  ~/app.py
+|4,56,1,0,1751551170,"~/app.py"
+'9  2  0  ~/app.py
+|4,57,2,0,1751551170,"~/app.py"
 
 # Jumplist (newest first):
--'  318  49  ~/visualization.py
-|4,39,318,49,1751497028,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751497024,"~/visualization.py"
--'  290  49  ~/visualization.py
-|4,39,290,49,1751496876,"~/visualization.py"
--'  290  49  ~/visualization.py
-|4,39,290,49,1751496397,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751496391,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751496391,"~/visualization.py"
--'  400  49  ~/visualization.py
-|4,39,400,49,1751496190,"~/visualization.py"
--'  373  49  ~/visualization.py
-|4,39,373,49,1751496190,"~/visualization.py"
--'  373  49  ~/visualization.py
-|4,39,373,49,1751496190,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751496184,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751496010,"~/visualization.py"
--'  256  4  ~/visualization.py
-|4,39,256,4,1751495995,"~/visualization.py"
--'  256  4  ~/visualization.py
-|4,39,256,4,1751495995,"~/visualization.py"
--'  256  4  ~/visualization.py
-|4,39,256,4,1751495935,"~/visualization.py"
--'  256  31  ~/visualization.py
-|4,39,256,31,1751495780,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751495775,"~/visualization.py"
--'  1  0  ~/visualization.py
-|4,39,1,0,1751495775,"~/visualization.py"
--'  76  0  ~/visualization.py
-|4,39,76,0,1751495603,"~/visualization.py"
--'  76  0  ~/visualization.py
-|4,39,76,0,1751495603,"~/visualization.py"
--'  76  0  ~/visualization.py
-|4,39,76,0,1751495603,"~/visualization.py"
--'  76  0  ~/visualization.py
-|4,39,76,0,1751495603,"~/visualization.py"
--'  73  0  ~/visualization.py
-|4,39,73,0,1751495423,"~/visualization.py"
--'  73  0  ~/visualization.py
-|4,39,73,0,1751495423,"~/visualization.py"
--'  73  0  ~/visualization.py
-|4,39,73,0,1751495423,"~/visualization.py"
--'  73  0  ~/visualization.py
-|4,39,73,0,1751495423,"~/visualization.py"
--'  81  0  ~/visualization.py
-|4,39,81,0,1751495406,"~/visualization.py"
--'  81  0  ~/visualization.py
-|4,39,81,0,1751495406,"~/visualization.py"
--'  81  0  ~/visualization.py
-|4,39,81,0,1751495406,"~/visualization.py"
--'  81  0  ~/visualization.py
-|4,39,81,0,1751495406,"~/visualization.py"
--'  72  12  ~/visualization.py
-|4,39,72,12,1751495310,"~/visualization.py"
--'  72  12  ~/visualization.py
-|4,39,72,12,1751495310,"~/visualization.py"
--'  72  12  ~/visualization.py
-|4,39,72,12,1751495310,"~/visualization.py"
--'  72  12  ~/visualization.py
-|4,39,72,12,1751495310,"~/visualization.py"
--'  73  12  ~/visualization.py
-|4,39,73,12,1751495310,"~/visualization.py"
--'  73  12  ~/visualization.py
-|4,39,73,12,1751495309,"~/visualization.py"
--'  76  121  ~/visualization.py
-|4,39,76,121,1751495220,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495101,"~/visualization.py"
--'  62  0  ~/visualization.py
-|4,39,62,0,1751495039,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  51  0  ~/visualization.py
-|4,39,51,0,1751494971,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  52  0  ~/visualization.py
-|4,39,52,0,1751494970,"~/visualization.py"
--'  51  45  ~/visualization.py
-|4,39,51,45,1751494950,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  57  45  ~/visualization.py
-|4,39,57,45,1751494904,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  60  15  ~/visualization.py
-|4,39,60,15,1751494884,"~/visualization.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
--'  112  27  ~/imdb_summary.py
-|4,39,112,27,1751494850,"~/imdb_summary.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751551772,"~/app.py"
+-'  11  23  ~/app.py
+|4,39,11,23,1751551411,"~/app.py"
+-'  1  21  ~/app.py
+|4,39,1,21,1751551392,"~/app.py"
+-'  1  21  ~/app.py
+|4,39,1,21,1751551274,"~/app.py"
+-'  2  0  ~/app.py
+|4,39,2,0,1751551170,"~/app.py"
+-'  2  0  ~/app.py
+|4,39,2,0,1751551170,"~/app.py"
+-'  23  0  ~/app.py
+|4,39,23,0,1751551149,"~/app.py"
+-'  23  0  ~/app.py
+|4,39,23,0,1751551149,"~/app.py"
+-'  60  15  ~/app.py
+|4,39,60,15,1751551113,"~/app.py"
+-'  60  15  ~/app.py
+|4,39,60,15,1751551113,"~/app.py"
+-'  89  15  ~/app.py
+|4,39,89,15,1751550999,"~/app.py"
+-'  61  15  ~/app.py
+|4,39,61,15,1751550999,"~/app.py"
+-'  61  15  ~/app.py
+|4,39,61,15,1751550999,"~/app.py"
+-'  90  9  ~/app.py
+|4,39,90,9,1751550990,"~/app.py"
+-'  62  9  ~/app.py
+|4,39,62,9,1751550990,"~/app.py"
+-'  62  9  ~/app.py
+|4,39,62,9,1751550990,"~/app.py"
+-'  61  9  ~/app.py
+|4,39,61,9,1751550717,"~/app.py"
+-'  1  9  ~/app.py
+|4,39,1,9,1751550710,"~/app.py"
+-'  1  9  ~/app.py
+|4,39,1,9,1751550710,"~/app.py"
+-'  1  9  ~/app.py
+|4,39,1,9,1751550710,"~/app.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  2  9  ~/test.py
+|4,39,2,9,1751549072,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
+-'  1  0  ~/test.py
+|4,39,1,0,1751549060,"~/test.py"
 
 # History of marks within files (newest to oldest):
+
+> ~/app.py
+	*	1751551844	0
+	"	10	9
+	^	10	10
+	.	10	10
+	+	1	13
+	+	1	32
+	+	1	10
+	+	1	22
+	+	1	13
+	+	1	2
+	+	1	6
+	+	1	29
+	+	1	22
+	+	1	23
+	+	1	2
+	+	1	10
+	+	1	0
+	+	1	15
+	+	1	47
+	+	1	22
+	+	1	57
+	+	1	6
+	+	1	2
+	+	1	10
+	+	1	49
+	+	1	25
+	+	1	0
+	+	87	27
+	+	79	22
+	+	61	22
+	+	39	22
+	+	25	22
+	+	10	10
+
+> ~/test.py
+	*	1751549070	0
+	"	2	9
+	^	2	10
+	.	2	10
+	+	2	10
+
+> ~/utils.py
+	*	1751548232	0
+	"	1	0
+	^	1	0
+	.	2	0
+	+	29	13
+	+	2	0
 
 > ~/visualization.py
 	*	1751497026	0
