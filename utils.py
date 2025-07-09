@@ -22,7 +22,18 @@ def read_summary_from_s3(key):
 
 def load_summary_dataframe():
     keys = list_summary_keys()
-    summaries = [read_summary_from_s3(k) for k in keys]
+    summaries = []
+    for k in keys:
+        try:
+            data = read_summary_from_s3(k)
+            if "timestamp_utc" in data:  # only include if key exists
+                summaries.append(data)
+        except Exception as e:
+            print(f"Skipping {k}: {e}")
+            continue
+    if not summaries:
+        return pd.DataFrame()
+    
     df = pd.DataFrame(summaries)
     df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
     df.sort_values("timestamp_utc", inplace=True)

@@ -1,0 +1,15 @@
+{
+  "method": "Sentiment (Sequential - AFINN)",
+  "total_reviews_processed": 1010293,
+  "total_pipeline_time_sec": 82.63,
+  "average_sentiment_polarity": 0.7922,
+  "sentiment_counts": {
+    "Positive": 596330,
+    "Negative": 170656,
+    "Neutral": 243307,
+    "Total_Categorized": 1010293
+  },
+  "throughput_reviews_per_sec": 12226.71,
+  "latency_sec_per_review": 0.0001,
+  "timestamp_utc": "2025-07-09T12:15:38.295991Z"
+}

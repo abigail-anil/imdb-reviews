@@ -1,0 +1,92 @@
+{
+  "method": "Hashtag (Sequential)",
+  "total_reviews_processed": 1010293,
+  "total_pipeline_time_sec": 41.06,
+  "throughput_reviews_per_sec": 24605.28,
+  "latency_sec_per_review": 0.0,
+  "top_hashtags_occurrences": [
+    [
+      "#metoo",
+      267
+    ],
+    [
+      "#samthebestest",
+      257
+    ],
+    [
+      "#ssr",
+      141
+    ],
+    [
+      "#alive",
+      130
+    ],
+    [
+      "#dilbechara",
+      113
+    ],
+    [
+      "#sushantsinghrajput",
+      81
+    ],
+    [
+      "#netflix",
+      59
+    ],
+    [
+      "#asur",
+      50
+    ],
+    [
+      "#movieslover",
+      37
+    ],
+    [
+      "#boycottbollywood",
+      33
+    ],
+    [
+      "#horror",
+      32
+    ],
+    [
+      "#iwantmoregotham",
+      28
+    ],
+    [
+      "#renewannewithane",
+      27
+    ],
+    [
+      "#illegal",
+      27
+    ],
+    [
+      "#gunjansaxena",
+      26
+    ],
+    [
+      "#joker",
+      24
+    ],
+    [
+      "#mustwatch",
+      21
+    ],
+    [
+      "#king",
+      20
+    ],
+    [
+      "#fan",
+      18
+    ],
+    [
+      "#sixseasonsandamovie",
+      17
+    ]
+  ],
+  "total_unique_hashtags": 3228,
+  "total_extracted_hashtags": 6267,
+  "timestamp_utc": "2025-07-09T12:18:37.567739Z"
+}

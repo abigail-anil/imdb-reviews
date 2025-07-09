@@ -15,11 +15,11 @@
 
 # Command Line History (newest to oldest):
 :wq!
-|2,0,1751551846,,"wq!"
+|2,0,1752069661,,"wq!"
+:q
+|2,0,1751671489,,"q"
 :q!
 |2,0,1751551170,,"q!"
-:q
-|2,0,1751496876,,"q"
 :wq1
 |2,0,1751386587,,"wq1"
 :950
@@ -136,7 +136,28 @@
 # Debug Line History (newest to oldest):
 
 # Registers:
-""1	LINE	0
+"2	LINE	0
+	    return df
+|3,0,2,1,1,0,1751667074,"    return df"
+"3	LINE	0
+	    df.sort_values("timestamp_utc", inplace=True)
+|3,0,3,1,1,0,1751667073,"    df.sort_values(\"timestamp_utc\", inplace=True)"
+"4	LINE	0
+	    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
+|3,0,4,1,1,0,1751667072,"    df[\"timestamp_utc\"] = pd.to_datetime(df[\"timestamp_utc\"])"
+"5	LINE	0
+	    df = pd.DataFrame(summaries)
+|3,0,5,1,1,0,1751667072,"    df = pd.DataFrame(summaries)"
+"6	LINE	0
+	    summaries = [read_summary_from_s3(k) for k in keys]
+|3,0,6,1,1,0,1751667071,"    summaries = [read_summary_from_s3(k) for k in keys]"
+"7	LINE	0
+	    keys = list_summary_keys()
+|3,0,7,1,1,0,1751667070,"    keys = list_summary_keys()"
+"8	LINE	0
+	def load_summary_dataframe():
+|3,0,8,1,1,0,1751667070,"def load_summary_dataframe():"
+"9	LINE	0
 	import streamlit as st
 	import pandas as pd
 	import plotly.express as px
@@ -187,477 +208,246 @@
 	    except:
 	        st.warning("Top words not available.")
 	
-|3,1,1,1,50,0,1751551772,"import streamlit as st","import pandas as pd","import plotly.express as px","from utils import load_summary_dataframe","from streamlit_autorefresh import st_autorefresh ","","# Set page config","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","#  Auto-refresh every 10 seconds",>85
+|3,0,9,1,50,0,1751551772,"import streamlit as st","import pandas as pd","import plotly.express as px","from utils import load_summary_dataframe","from streamlit_autorefresh import st_autorefresh ","","# Set page config","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","#  Auto-refresh every 10 seconds",>85
 |<"st_autorefresh(interval=10000, key=\"auto-refresh\")  # interval is in milliseconds","","# Load data","df = load_summary_dataframe()","","if df.empty:","    st.warning(\"No data available yet.\")","else:","    # Sliding window: last 5 minutes","    latest_time = df[\"timestamp_utc\"].max()","    recent_df = df[df[\"timestamp_utc\"] > latest_time - pd.Timedelta(minutes=5)]","","    #  Average Sentiment Over Time",>128
 |<"    fig_sentiment = px.line(recent_df, x=\"timestamp_utc\", y=\"avg_sentiment_window\", title=\"Average Sentiment Over Time\")","    st.plotly_chart(fig_sentiment, use_container_width=True)","","    #  Throughput Over Time","    fig_throughput = px.line(recent_df, x=\"timestamp_utc\", y=\"throughput_rec_per_sec\", title=\"Throughput (records/sec)\")","    st.plotly_chart(fig_throughput, use_container_width=True)","","    #  Sentiment Count Totals","    latest_row = df.iloc[-1]",>26
 |<"    sentiment_counts = {","        \"Positive\": latest_row[\"positive_count_total\"],","        \"Neutral\": latest_row[\"neutral_count_total\"],","        \"Negative\": latest_row[\"negative_count_total\"]","    }","    st.subheader(\"Sentiment Count Totals\")","    st.bar_chart(sentiment_counts)","","    #  Top 5 Words","    try:","        top_words = latest_row[\"top_words_window\"]","        words_df = pd.DataFrame(top_words, columns=[\"Word\", \"Count\"])",>104
 |<"        fig_words = px.bar(words_df, x=\"Word\", y=\"Count\", title=\"Top 5 Words in Sliding Window\")","        st.plotly_chart(fig_words, use_container_width=True)","    except:","        st.warning(\"Top words not available.\")",""
-"2	LINE	0
-	import streamlit as st
-	import pandas as pd
-	import plotly.express as px
-	import time
-	from utils import load_summary_dataframe
-	
-	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
-	st.title(" Real-Time IMDB Sentiment Dashboard")
-	
-	REFRESH_INTERVAL = 5  # seconds
-	placeholder = st.empty()
-	
-	with placeholder.container():
-	    df = load_summary_dataframe()
-	
-	    if df.empty:
-	        st.warning("No data available yet.")
-	    else:
-	        # Sliding window: last 5 minutes
-	        latest_time = df["timestamp_utc"].max()
-	        recent_df = df[df["timestamp_utc"] > latest_time - pd.Timedelta(minutes=5)]
-	
-	        #  Average Sentiment Over Time
-	        fig_sentiment = px.line(recent_df, x="timestamp_utc", y="avg_sentiment_window", title="Average Sentiment Over Time")
-	        st.plotly_chart(fig_sentiment, use_container_width=True)
-	
-	        #  Throughput Over Time
-	        fig_throughput = px.line(recent_df, x="timestamp_utc", y="throughput_rec_per_sec", title="Throughput (records/sec)")
-	        st.plotly_chart(fig_throughput, use_container_width=True)
-	
-	        #  Sentiment Counts (latest)
-	        latest_row = df.iloc[-1]
-	        sentiment_counts = {
-	            "Positive": latest_row["positive_count_total"],
-	            "Neutral": latest_row["neutral_count_total"],
-	            "Negative": latest_row["negative_count_total"]
-	        }
-	        st.subheader("Sentiment Count Totals")
-	        st.bar_chart(sentiment_counts)
-	
-	        #  Top 5 Words
-	        try:
-	            top_words = latest_row["top_words_window"]
-	            words_df = pd.DataFrame(top_words, columns=["Word", "Count"])
-	            fig_words = px.bar(words_df, x="Word", y="Count", title="Top 5 Words in Sliding Window")
-	            st.plotly_chart(fig_words, use_container_width=True)
-	        except:
-	            st.warning("Top words not available.")
-	
-	        #  Top Movies & Sentiment
-|3,0,2,1,50,0,1751551231,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","from utils import load_summary_dataframe","","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","REFRESH_INTERVAL = 5  # seconds","placeholder = st.empty()","","with placeholder.container():","    df = load_summary_dataframe()","","    if df.empty:",>48
-|<"        st.warning(\"No data available yet.\")","    else:","        # Sliding window: last 5 minutes","        latest_time = df[\"timestamp_utc\"].max()","        recent_df = df[df[\"timestamp_utc\"] > latest_time - pd.Timedelta(minutes=5)]","","        #  Average Sentiment Over Time","        fig_sentiment = px.line(recent_df, x=\"timestamp_utc\", y=\"avg_sentiment_window\", title=\"Average Sentiment Over Time\")","        st.plotly_chart(fig_sentiment, use_container_width=True)","",>33
-|<"        #  Throughput Over Time","        fig_throughput = px.line(recent_df, x=\"timestamp_utc\", y=\"throughput_rec_per_sec\", title=\"Throughput (records/sec)\")","        st.plotly_chart(fig_throughput, use_container_width=True)","","        #  Sentiment Counts (latest)","        latest_row = df.iloc[-1]","        sentiment_counts = {","            \"Positive\": latest_row[\"positive_count_total\"],","            \"Neutral\": latest_row[\"neutral_count_total\"],",>64
-|<"            \"Negative\": latest_row[\"negative_count_total\"]","        }","        st.subheader(\"Sentiment Count Totals\")","        st.bar_chart(sentiment_counts)","","        #  Top 5 Words","        try:","            top_words = latest_row[\"top_words_window\"]","            words_df = pd.DataFrame(top_words, columns=[\"Word\", \"Count\"])","            fig_words = px.bar(words_df, x=\"Word\", y=\"Count\", title=\"Top 5 Words in Sliding Window\")",>66
-|<"            st.plotly_chart(fig_words, use_container_width=True)","        except:","            st.warning(\"Top words not available.\")","","        #  Top Movies & Sentiment"
-"3	LINE	0
-	#  Refresh every 5 seconds
-|3,0,3,1,1,0,1751551154,"#  Refresh every 5 seconds"
-"4	LINE	0
-	time.sleep(REFRESH_INTERVAL)
-|3,0,4,1,1,0,1751551153,"time.sleep(REFRESH_INTERVAL)"
-"5	LINE	0
-	st_autorefresh()
-|3,0,5,1,1,0,1751551152,"st_autorefresh()"
-"6	LINE	0
-	st.rerun()
-|3,0,6,1,1,0,1751550993,"st.rerun()"
-"7	LINE	0
-	st.experimental_rerun()
-|3,0,7,1,1,0,1751550714,"st.experimental_rerun()"
-"8	LINE	0
-	import streamlit as st
-	import pandas as pd
-	import plotly.express as px
-	import time
-	import boto3
-	import json
-	from datetime import datetime
-	
-	# --- AWS S3 Config ---
-	S3_BUCKET = "imdbreviews-scalable"
-	S3_PREFIX = "kafka-consumer-outputs/"
-	
-	# --- Helper functions ---
-	def list_summary_keys():
-	    s3 = boto3.client('s3')
-	    paginator = s3.get_paginator("list_objects_v2")
-	    keys = []
-	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
-	        for obj in page.get('Contents', []):
-	            if obj['Key'].endswith('.json'):
-	                keys.append(obj['Key'])
-	    return sorted(keys)
-	
-	def read_summary_from_s3(key):
-	    s3 = boto3.client('s3')
-	    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
-	    return json.loads(obj['Body'].read())
-	
-	def load_summary_dataframe():
-	    keys = list_summary_keys()
-	    summaries = [read_summary_from_s3(k) for k in keys]
-	    df = pd.DataFrame(summaries)
-	    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
-	    df.sort_values("timestamp_utc", inplace=True)
-	    return df
-	
-	# --- Streamlit Dashboard ---
-	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
-	st.title(" Real-Time IMDB Sentiment Dashboard")
-	
-	# Auto-refresh every 5 seconds
-	st.experimental_data_editor({ ["Refreshing every 5 seconds..."]}, use_container_width=True)
-	st_autorefresh = st.experimental_rerun  # You can also use st_autorefresh() if using Streamlit >= 1.18
-	
-	df = load_summary_dataframe()
-	
-	if df.empty:
-	    st.warning("No data available yet.")
-	else:
-	    # Sliding window: last 5 minutes
-|3,0,8,1,50,0,1751548245,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","import boto3","import json","from datetime import datetime","","# --- AWS S3 Config ---","S3_BUCKET = \"imdbreviews-scalable\"","S3_PREFIX = \"kafka-consumer-outputs/\"","","# --- Helper functions ---","def list_summary_keys():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator(\"list_objects_v2\")","    keys = []",>73
-|<"    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return sorted(keys)","","def read_summary_from_s3(key):","    s3 = boto3.client('s3')","    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(obj['Body'].read())","","def load_summary_dataframe():","    keys = list_summary_keys()",>57
-|<"    summaries = [read_summary_from_s3(k) for k in keys]","    df = pd.DataFrame(summaries)","    df[\"timestamp_utc\"] = pd.to_datetime(df[\"timestamp_utc\"])","    df.sort_values(\"timestamp_utc\", inplace=True)","    return df","","# --- Streamlit Dashboard ---","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","# Auto-refresh every 5 seconds",>95
-|<"st.experimental_data_editor({ [\"Refreshing every 5 seconds...\"]}, use_container_width=True)","st_autorefresh = st.experimental_rerun  # You can also use st_autorefresh() if using Streamlit >= 1.18","","df = load_summary_dataframe()","","if df.empty:","    st.warning(\"No data available yet.\")","else:","    # Sliding window: last 5 minutes"
-"9	LINE	0
-	import streamlit as st
-	import pandas as pd
-	import plotly.express as px
-	import time
-	import boto3
-	import json
-	from datetime import datetime
-	
-	# --- AWS S3 Config ---
-	S3_BUCKET = "imdbreviews-scalable"
-	S3_PREFIX = "kafka-consumer-outputs/"
-	
-	# --- Helper functions ---
-	def list_summary_keys():
-	    s3 = boto3.client('s3')
-	    paginator = s3.get_paginator("list_objects_v2")
-	    keys = []
-	    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
-	        for obj in page.get('Contents', []):
-	            if obj['Key'].endswith('.json'):
-	                keys.append(obj['Key'])
-	    return sorted(keys)
-	
-	def read_summary_from_s3(key):
-	    s3 = boto3.client('s3')
-	    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
-	    return json.loads(obj['Body'].read())
-	
-	def load_summary_dataframe():
-	    keys = list_summary_keys()
-	    summaries = [read_summary_from_s3(k) for k in keys]
-	    df = pd.DataFrame(summaries)
-	    df["timestamp_utc"] = pd.to_datetime(df["timestamp_utc"])
-	    df.sort_values("timestamp_utc", inplace=True)
-	    return df
-	
-	st.set_page_config(page_title="Real-Time IMDB Dashboard", layout="wide")
-	st.title(" Real-Time IMDB Sentiment Dashboard")
-	
-	REFRESH_INTERVAL = 5  # seconds
-	placeholder = st.empty()
-	
-	while True:
-	    with placeholder.container():
-	        df = load_summary_dataframe()
-	
-	        if df.empty:
-	            st.warning("No data available yet.")
-	            time.sleep(REFRESH_INTERVAL)
-	            continue
-|3,0,9,1,50,0,1751548080,"import streamlit as st","import pandas as pd","import plotly.express as px","import time","import boto3","import json","from datetime import datetime","","# --- AWS S3 Config ---","S3_BUCKET = \"imdbreviews-scalable\"","S3_PREFIX = \"kafka-consumer-outputs/\"","","# --- Helper functions ---","def list_summary_keys():","    s3 = boto3.client('s3')","    paginator = s3.get_paginator(\"list_objects_v2\")","    keys = []",>73
-|<"    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):","        for obj in page.get('Contents', []):","            if obj['Key'].endswith('.json'):","                keys.append(obj['Key'])","    return sorted(keys)","","def read_summary_from_s3(key):","    s3 = boto3.client('s3')","    obj = s3.get_object(Bucket=S3_BUCKET, Key=key)","    return json.loads(obj['Body'].read())","","def load_summary_dataframe():","    keys = list_summary_keys()",>57
-|<"    summaries = [read_summary_from_s3(k) for k in keys]","    df = pd.DataFrame(summaries)","    df[\"timestamp_utc\"] = pd.to_datetime(df[\"timestamp_utc\"])","    df.sort_values(\"timestamp_utc\", inplace=True)","    return df","","st.set_page_config(page_title=\"Real-Time IMDB Dashboard\", layout=\"wide\")","st.title(\" Real-Time IMDB Sentiment Dashboard\")","","REFRESH_INTERVAL = 5  # seconds","placeholder = st.empty()","","while True:","    with placeholder.container():",>39
-|<"        df = load_summary_dataframe()","","        if df.empty:","            st.warning(\"No data available yet.\")","            time.sleep(REFRESH_INTERVAL)","            continue"
 "-	CHAR	0
 	'
 |3,0,36,0,1,0,1751326969,"'"
 
 # File marks:
-'0  10  9  ~/app.py
-|4,48,10,9,1751551846,"~/app.py"
-'1  1  23  ~/app.py
-|4,49,1,23,1751551411,"~/app.py"
-'2  11  23  ~/app.py
-|4,50,11,23,1751551411,"~/app.py"
-'3  1  21  ~/app.py
-|4,51,1,21,1751551274,"~/app.py"
-'4  1  21  ~/app.py
-|4,52,1,21,1751551274,"~/app.py"
-'5  1  21  ~/app.py
-|4,53,1,21,1751551274,"~/app.py"
-'6  1  21  ~/app.py
-|4,54,1,21,1751551274,"~/app.py"
-'7  1  0  ~/app.py
-|4,55,1,0,1751551170,"~/app.py"
-'8  1  0  ~/app.py
-|4,56,1,0,1751551170,"~/app.py"
-'9  2  0  ~/app.py
-|4,57,2,0,1751551170,"~/app.py"
+'0  67  16  ~/visualization.py
+|4,48,67,16,1752069661,"~/visualization.py"
+'1  1  8  ~/visualization.py
+|4,49,1,8,1752063125,"~/visualization.py"
+'2  1  8  ~/visualization.py
+|4,50,1,8,1752063125,"~/visualization.py"
+'3  30  0  ~/kafka_2.13-3.7.0/config/server.properties
+|4,51,30,0,1751671489,"~/kafka_2.13-3.7.0/config/server.properties"
+'4  41  0  ~/utils.py
+|4,52,41,0,1751667079,"~/utils.py"
+'5  1  0  ~/app.py
+|4,53,1,0,1751667034,"~/app.py"
+'6  14  11  ~/.gitignore
+|4,54,14,11,1751664954,"~/.gitignore"
+'7  10  9  ~/app.py
+|4,55,10,9,1751551846,"~/app.py"
+'8  10  9  ~/app.py
+|4,56,10,9,1751551846,"~/app.py"
+'9  11  23  ~/app.py
+|4,57,11,23,1751551411,"~/app.py"
 
 # Jumplist (newest first):
+-'  67  16  ~/visualization.py
+|4,39,67,16,1752069661,"~/visualization.py"
+-'  1  8  ~/visualization.py
+|4,39,1,8,1752069552,"~/visualization.py"
+-'  1  8  ~/visualization.py
+|4,39,1,8,1752063125,"~/visualization.py"
+-'  30  0  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,30,0,1751671489,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  30  0  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,30,0,1751671489,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  30  0  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,30,0,1751671489,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  30  0  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,30,0,1751671489,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  59  26  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,59,26,1751667502,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  59  26  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,59,26,1751667502,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  59  26  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,59,26,1751667502,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  59  26  ~/kafka_2.13-3.7.0/config/server.properties
+|4,39,59,26,1751667502,"~/kafka_2.13-3.7.0/config/server.properties"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  41  0  ~/utils.py
+|4,39,41,0,1751667079,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/utils.py
+|4,39,1,0,1751667037,"~/utils.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  1  0  ~/app.py
+|4,39,1,0,1751667034,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751666949,"~/app.py"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
+-'  14  11  ~/.gitignore
+|4,39,14,11,1751664954,"~/.gitignore"
 -'  10  9  ~/app.py
 |4,39,10,9,1751551846,"~/app.py"
--'  1  0  ~/app.py
-|4,39,1,0,1751551772,"~/app.py"
--'  11  23  ~/app.py
-|4,39,11,23,1751551411,"~/app.py"
--'  1  21  ~/app.py
-|4,39,1,21,1751551392,"~/app.py"
--'  1  21  ~/app.py
-|4,39,1,21,1751551274,"~/app.py"
--'  2  0  ~/app.py
-|4,39,2,0,1751551170,"~/app.py"
--'  2  0  ~/app.py
-|4,39,2,0,1751551170,"~/app.py"
--'  23  0  ~/app.py
-|4,39,23,0,1751551149,"~/app.py"
--'  23  0  ~/app.py
-|4,39,23,0,1751551149,"~/app.py"
--'  60  15  ~/app.py
-|4,39,60,15,1751551113,"~/app.py"
--'  60  15  ~/app.py
-|4,39,60,15,1751551113,"~/app.py"
--'  89  15  ~/app.py
-|4,39,89,15,1751550999,"~/app.py"
--'  61  15  ~/app.py
-|4,39,61,15,1751550999,"~/app.py"
--'  61  15  ~/app.py
-|4,39,61,15,1751550999,"~/app.py"
--'  90  9  ~/app.py
-|4,39,90,9,1751550990,"~/app.py"
--'  62  9  ~/app.py
-|4,39,62,9,1751550990,"~/app.py"
--'  62  9  ~/app.py
-|4,39,62,9,1751550990,"~/app.py"
--'  61  9  ~/app.py
-|4,39,61,9,1751550717,"~/app.py"
--'  1  9  ~/app.py
-|4,39,1,9,1751550710,"~/app.py"
--'  1  9  ~/app.py
-|4,39,1,9,1751550710,"~/app.py"
--'  1  9  ~/app.py
-|4,39,1,9,1751550710,"~/app.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  2  9  ~/test.py
-|4,39,2,9,1751549072,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
--'  1  0  ~/test.py
-|4,39,1,0,1751549060,"~/test.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
+-'  10  9  ~/app.py
+|4,39,10,9,1751551846,"~/app.py"
 
 # History of marks within files (newest to oldest):
 
-> ~/app.py
-	*	1751551844	0
-	"	10	9
-	^	10	10
-	.	10	10
-	+	1	13
-	+	1	32
-	+	1	10
-	+	1	22
-	+	1	13
-	+	1	2
-	+	1	6
-	+	1	29
-	+	1	22
-	+	1	23
-	+	1	2
-	+	1	10
-	+	1	0
-	+	1	15
-	+	1	47
-	+	1	22
-	+	1	57
-	+	1	6
-	+	1	2
-	+	1	10
-	+	1	49
-	+	1	25
-	+	1	0
-	+	87	27
-	+	79	22
-	+	61	22
-	+	39	22
-	+	25	22
-	+	10	10
-
-> ~/test.py
-	*	1751549070	0
-	"	2	9
-	^	2	10
-	.	2	10
-	+	2	10
-
-> ~/utils.py
-	*	1751548232	0
-	"	1	0
-	^	1	0
-	.	2	0
-	+	29	13
-	+	2	0
-
 > ~/visualization.py
-	*	1751497026	0
-	"	318	49
-	^	318	50
-	.	318	49
+	*	1752069658	0
+	"	67	16
+	^	67	17
+	.	67	16
 	+	1	9
 	+	1	7
 	+	1	16
@@ -700,7 +490,93 @@
 	+	1	0
 	+	1	119
 	+	1	9
-	+	318	49
+	+	135	15
+	+	125	16
+	+	114	14
+	+	38	28
+	+	36	28
+	+	24	11
+	+	67	16
+
+> ~/kafka_2.13-3.7.0/config/server.properties
+	*	1751668329	0
+	"	30	0
+	^	59	27
+	.	59	26
+	+	38	45
+	+	34	36
+	+	35	45
+	+	58	33
+	+	59	26
+
+> ~/utils.py
+	*	1751667077	0
+	"	41	0
+	^	41	0
+	.	40	13
+	+	23	13
+	+	2	0
+	+	23	29
+	+	40	13
+
+> ~/app.py
+	*	1751667031	0
+	"	1	0
+	^	10	10
+	.	10	10
+	+	1	13
+	+	1	32
+	+	1	10
+	+	1	22
+	+	1	13
+	+	1	2
+	+	1	6
+	+	1	29
+	+	1	22
+	+	1	23
+	+	1	2
+	+	1	10
+	+	1	0
+	+	1	15
+	+	1	47
+	+	1	22
+	+	1	57
+	+	1	6
+	+	1	2
+	+	1	10
+	+	1	49
+	+	1	25
+	+	1	0
+	+	87	27
+	+	79	22
+	+	61	22
+	+	39	22
+	+	25	22
+	+	10	10
+
+> ~/.gitignore
+	*	1751664951	0
+	"	14	11
+	^	14	12
+	.	14	11
+	+	6	41
+	+	4	0
+	+	7	4
+	+	4	0
+	+	6	11
+	+	8	17
+	+	10	7
+	+	11	20
+	+	12	5
+	+	13	13
+	+	14	11
+
+> ~/test.py
+	*	1751549070	0
+	"	2	9
+	^	2	10
+	.	2	10
+	+	2	10
 
 > ~/imdb_summary.py
 	*	1751494849	0
@@ -735,23 +611,6 @@
 	+	1	12
 	+	146	23
 	+	112	28
-
-> ~/.gitignore
-	*	1751486929	0
-	"	14	11
-	^	14	12
-	.	14	11
-	+	6	41
-	+	4	0
-	+	7	4
-	+	4	0
-	+	6	11
-	+	8	17
-	+	10	7
-	+	11	20
-	+	12	5
-	+	13	13
-	+	14	11
 
 > ~/1
 	*	1751486477	0
@@ -889,17 +748,6 @@
 	+	1	32
 	+	1	12
 	+	102	89
-
-> ~/kafka_2.13-3.7.0/config/server.properties
-	*	1751450435	0
-	"	59	26
-	^	59	27
-	.	59	26
-	+	38	45
-	+	34	36
-	+	35	45
-	+	58	33
-	+	59	26
 
 > ~/kafka_2.13-3.7.0/logs/server.log
 	*	1751450289	0
